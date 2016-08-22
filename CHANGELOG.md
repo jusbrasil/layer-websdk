@@ -16,7 +16,7 @@ This release introduces one minor breaking change: there will be no more use of 
   * When a Message is created, it no longer triggers a "messages:change" with "property": "id".  However,
     it does trigger a "messages:change" event with "property" of "position".
   * Use of "temp_layer:///" IDs is removed.
-* Improved error logging
+* Improved error logging within the Sync Manager for any failure that requires aborting a request
 
 
 ## 1.0.12

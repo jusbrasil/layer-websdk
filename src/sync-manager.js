@@ -185,6 +185,24 @@ class SyncManager extends Root {
   }
 
   /**
+   * Turn deduplication errors into success messages.
+   *
+   * If this request has already been made but we failed to get a response the first time and we retried the request,
+   * we will reissue the request.  If the prior request was successful we'll get back a deduplication error
+   * with the created object. As far as the WebSDK is concerned, this is a success.
+   *
+   * @method _handleDeduplicationErrors
+   * @private
+   */
+  _handleDeduplicationErrors(result) {
+    if (result.data && result.data.id === 'id_in_use' &&
+        result.data.data && result.data.data.id === result.request._getCreateId()) {
+      result.success = true;
+      result.data = result.data.data;
+    }
+  }
+
+  /**
    * Process the result of an xhr call, routing it to the appropriate handler.
    *
    * @method _xhrResult
@@ -195,6 +213,7 @@ class SyncManager extends Root {
   _xhrResult(result, requestEvt) {
     result.request = requestEvt;
     requestEvt.isFiring = false;
+    this._handleDeduplicationErrors(result);
     if (!result.success) {
       this._xhrError(result);
     } else {
@@ -212,6 +231,7 @@ class SyncManager extends Root {
    * @param  {boolean} isOnline - Is our app state set to online
    */
   _getErrorState(result, requestEvt, isOnline) {
+    const errId = result.data ? result.data.id : '';
     if (!isOnline) {
       // CORS errors look identical to offline; but if our online state has transitioned from false to true repeatedly while processing this request,
       // thats a hint that that its a CORS error
@@ -220,9 +240,11 @@ class SyncManager extends Root {
       } else {
         return 'offline';
       }
-    } else if (result.status === 404 && result.data && result.data.code === 102) {
+    } else if (errId === 'not_found') {
       return 'notFound';
-    } else if (result.status === 408) {
+    } else if (errId === 'id_in_use') {
+      return 'invalidId'; // This only fires if we get `id_in_use` but no Resource, which means the UUID was used by another user/app.
+    } else if (result.status === 408 || errId === 'request_timeout') {
       if (requestEvt.retryCount >= SyncManager.MAX_RETRIES) {
         return 'tooManyFailuresWhileOnline';
       } else {
@@ -234,7 +256,7 @@ class SyncManager extends Root {
       } else {
         return 'serverUnavailable';
       }
-    } else if (result.status === 401 && result.data.data && result.data.data.nonce) {
+    } else if (errId === 'authentication_required' && result.data.data && result.data.data.nonce) {
       return 'reauthorize';
     } else {
       return 'serverRejectedRequest';
@@ -263,11 +285,14 @@ class SyncManager extends Root {
     logger.warn('Sync Manager Error State: ' + errState);
     switch (errState) {
       case 'tooManyFailuresWhileOnline':
-        this._xhrHandleServerError(result, 'Sync Manager Server Unavailable Too Long; removing request');
+        this._xhrHandleServerError(result, 'Sync Manager Server Unavailable Too Long; removing request', false);
         break;
       case 'notFound':
-        this._xhrHandleServerError(result, 'Resource not found; presumably deleted');
+        this._xhrHandleServerError(result, 'Resource not found; presumably deleted', false);
         break;
+      case 'invalidId':
+       this._xhrHandleServerError(result, 'ID was not unique; request failed', false);
+       break;
       case 'validateOnlineAndRetry':
         // Server appears to be hung but will eventually recover.
         // Retry a few times and then error out.
@@ -288,11 +313,11 @@ class SyncManager extends Root {
         // Server presumably did not like the arguments to this call
         // or the url was invalid.  Do not retry; trigger the callback
         // and let the caller handle it.
-        this._xhrHandleServerError(result, 'Sync Manager Server Rejects Request; removing request');
+        this._xhrHandleServerError(result, 'Sync Manager Server Rejects Request; removing request', true);
         break;
       case 'CORS':
         // A pattern of offline-like failures that suggests its actually a CORs error
-        this._xhrHandleServerError(result, 'Sync Manager Server detects CORS-like errors; removing request');
+        this._xhrHandleServerError(result, 'Sync Manager Server detects CORS-like errors; removing request', false);
         break;
       case 'offline':
         this._xhrHandleConnectionError();
@@ -337,12 +362,20 @@ class SyncManager extends Root {
    * @method _xhrHandleServerError
    * @private
    * @param  {Object} result  - Response object returned by xhr call
+   * @param  {string} logMsg - Message to display in console
+   * @param  {boolean} stringify - log object for quick debugging
    *
    */
-  _xhrHandleServerError(result, logMsg) {
+  _xhrHandleServerError(result, logMsg, stringify) {
     // Execute all callbacks provided by the request
-    result.request.callback(result);
-    logger.error(logMsg, result.request);
+    if (result.request.callback) result.request.callback(result);
+    if (stringify) {
+      logger.error(logMsg +
+        '\nREQUEST: ' + JSON.stringify(result.request.toObject(), null, 4) +
+        '\nRESPONSE: ' + JSON.stringify(result.data, null, 4));
+    } else {
+      logger.error(logMsg, result);
+    }
     this.trigger('sync:error', {
       target: result.request.target,
       request: result.request,

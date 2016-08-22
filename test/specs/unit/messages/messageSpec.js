@@ -980,8 +980,6 @@ describe("The Messages class", function() {
         });
     });
 
-
-
     describe("The send() method", function() {
         var m;
         beforeEach(function() {
@@ -1041,8 +1039,10 @@ describe("The Messages class", function() {
             spyOn(m, "_preparePartsForSending");
             m.send();
             expect(m._preparePartsForSending).toHaveBeenCalledWith({
-                parts: new Array(1)
+                parts: new Array(1),
+                id: m.id
             });
+            expect(m.id).toMatch(/^layer:\/\/\/messages\/.+$/);
         });
 
         it("Should call _preparePartsForSending with a notification property", function() {
@@ -1053,6 +1053,7 @@ describe("The Messages class", function() {
             });
             expect(m._preparePartsForSending).toHaveBeenCalledWith({
                 parts: new Array(1),
+                id: m.id,
                 notification: {
                     sound: "doh.aiff",
                     text: "Doh!"
@@ -1102,11 +1103,15 @@ describe("The Messages class", function() {
             spyOn(m.parts[1], "_send");
 
             // Run
-            m._preparePartsForSending({parts: [null, null]});
+            m._preparePartsForSending({
+              parts: [null, null],
+              id: "fred"
+            });
 
             // Posttest
             expect(m.parts[0]._send).toHaveBeenCalledWith(client);
             expect(m.parts[1]._send).toHaveBeenCalledWith(client);
+
         });
 
         it("Should copy in part data on receiving a parts:send event and call send", function() {
@@ -1116,7 +1121,10 @@ describe("The Messages class", function() {
             spyOn(m.parts[1], "_send");
 
             // Run
-            m._preparePartsForSending({parts: [null, null]});
+            m._preparePartsForSending({
+                parts: [null, null],
+                id: m.id
+            });
             m.parts[0].trigger("parts:send", {
                 mime_type: "actor/mime",
                 body: "I am a Mime"
@@ -1128,6 +1136,7 @@ describe("The Messages class", function() {
 
             // Posttest
             expect(m._send).toHaveBeenCalledWith({
+                id: m.id,
                 parts: [{
                     mime_type: "actor/mime",
                     body: "I am a Mime"
@@ -1477,376 +1486,7 @@ describe("The Messages class", function() {
 
     });
 
-    describe("The _populateFromServer() method", function() {
-        var m;
 
-        afterEach(function() {
-            if(m && !m.isDestroyed) m.destroy();
-        });
-
-        it("Should set the id", function() {
-            m = new layer.Message({
-                client: client
-            });
-            m._populateFromServer(responses.message1);
-            expect(m.id).toEqual(responses.message1.id);
-        });
-
-        it("Should set the url", function() {
-            m = new layer.Message({
-                client: client
-            });
-            m._populateFromServer(responses.message1);
-            expect(m.url).toEqual(responses.message1.url);
-        });
-
-        it("Should set the position", function() {
-            m = new layer.Message({
-                client: client
-            });
-            m._populateFromServer(responses.message1);
-            expect(m.position).toEqual(responses.message1.position);
-            expect(m.position).toEqual(jasmine.any(Number));
-        });
-
-        it("Should call __adjustParts", function() {
-            // Setup
-            m = new layer.Message({
-                client: client
-            });
-            spyOn(m, "__adjustParts");
-
-            // Run
-            m._populateFromServer(responses.message1);
-
-            // Posttest
-            expect(m.__adjustParts).toHaveBeenCalledWith([
-                jasmine.any(layer.MessagePart),
-                jasmine.any(layer.MessagePart)
-            ]);
-        });
-
-        it("Should call MessagePart._createFromServer", function() {
-            // Setup
-            var tmp = layer.MessagePart._createFromServer;
-            m = new layer.Message({
-                client: client
-            });
-            spyOn(layer.MessagePart, "_createFromServer").and.callThrough();
-
-            // Run
-            m._populateFromServer(responses.message1);
-
-            // Posttest
-            expect(layer.MessagePart._createFromServer).toHaveBeenCalledWith(
-                responses.message1.parts[0]
-            );
-
-            // Restore
-            layer.MessagePart._createFromServer = tmp;
-        });
-
-        it("Should call MessagePart._populateFromServer", function() {
-            // Setup
-            m = new layer.Message({
-              client: client,
-              fromServer: responses.message1
-            });
-            spyOn(m.parts[0], "_populateFromServer");
-            spyOn(m.parts[1], "_populateFromServer");
-            var parts = m.parts;
-
-            // Run
-            m._populateFromServer(responses.message1);
-
-            // Posttest
-            expect(m.parts[0]).toBe(parts[0]);
-            expect(m.parts[1]).toBe(parts[1]);
-            expect(m.parts.length).toEqual(2);
-            expect(m.parts[0]._populateFromServer).toHaveBeenCalledWith(responses.message1.parts[0]);
-            expect(m.parts[1]._populateFromServer).toHaveBeenCalledWith(responses.message1.parts[1]);
-        });
-
-        it("Should call MessagePart._populateFromServer even if parts don't have IDs", function() {
-            // Setup
-            m = new layer.Message({
-              client: client,
-              fromServer: responses.message1
-            });
-            m.parts[0].id = m.parts[1].id = '';
-            spyOn(m.parts[0], "_populateFromServer");
-            spyOn(m.parts[1], "_populateFromServer");
-            var parts = m.parts;
-
-            // Run
-            m._populateFromServer(responses.message1);
-
-            // Posttest
-            expect(m.parts[0]).toBe(parts[0]);
-            expect(m.parts[1]).toBe(parts[1]);
-            expect(m.parts.length).toEqual(2);
-            expect(m.parts[0]._populateFromServer).toHaveBeenCalledWith(responses.message1.parts[0]);
-            expect(m.parts[1]._populateFromServer).toHaveBeenCalledWith(responses.message1.parts[1]);
-        });
-
-        it("Should call __updateRecipientStatus()", function() {
-            // Setup
-            m = new layer.Message({
-                client: client
-            });
-            spyOn(m, "__updateRecipientStatus");
-            var data = JSON.parse(JSON.stringify(responses.message1));
-
-            // Run
-            m._populateFromServer(data);
-
-            // Posttest
-            expect(m.__updateRecipientStatus).toHaveBeenCalledWith(responses.message1.recipient_status, {});
-            expect(m.recipientStatus).toEqual(data.recipient_status);
-        });
-
-        it("Should set sender.userId", function() {
-            m = new layer.Message({
-                client: client
-            });
-            var data = JSON.parse(JSON.stringify(responses.message1));
-            m._populateFromServer(data);
-
-            expect(m.sender.userId).toEqual(responses.message1.sender.user_id);
-            expect(m.sender.userId.length > 0).toBe(true);
-            expect(m.sender.name).toEqual("");
-            expect(m.sender.displayName).toEqual("");
-            expect(m.sender.avatarUrl).toEqual("");
-        });
-
-        it("Should set sender.name", function() {
-            m = new layer.Message({
-                client: client
-            });
-            var data = JSON.parse(JSON.stringify(responses.message1));
-            data.sender = {name: "Fred"};
-
-            m._populateFromServer(data);
-
-            expect(m.sender.name).toEqual("Fred");
-            expect(m.sender.userId).toEqual("");
-        });
-
-        it("Should set sender.displayName", function() {
-            m = new layer.Message({
-                client: client
-            });
-            var data = JSON.parse(JSON.stringify(responses.message1));
-            data.sender.display_name = 'Doh';
-            m._populateFromServer(data);
-
-            expect(m.sender.displayName).toEqual('Doh');
-        });
-
-        it("Should set sender.avatarUrl", function() {
-            m = new layer.Message({
-                client: client
-            });
-            var data = JSON.parse(JSON.stringify(responses.message1));
-            data.sender.avatar_url = 'Doh';
-            m._populateFromServer(data);
-
-            expect(m.sender.avatarUrl).toEqual('Doh');
-        });
-
-        it("Should call _setSynced", function() {
-            // Setup
-            m = new layer.Message({
-                client: client
-            });
-            spyOn(m, "_setSynced");
-
-            // Run
-            m._populateFromServer(responses.message1);
-
-            // Posttest
-            expect(m._setSynced).toHaveBeenCalled();
-        });
-
-        it("Should trigger an ID change", function() {
-            // Setup
-            m = new layer.Message({
-                client: client
-            });
-            spyOn(m, "_triggerAsync");
-            var id = m.id;
-
-            // Run
-            m._populateFromServer({
-                id: "dohId",
-                sender: {
-                    user_id: "999"
-                },
-                parts: [{mime_type: "text/plain", body: "Doh!"}]
-            });
-
-            // Posttest
-            expect(m._triggerAsync).toHaveBeenCalledWith("messages:change", {
-                oldValue: id,
-                newValue: "dohId",
-                property: 'id'
-            });
-        });
-
-        it("Should call _updateMessageId", function() {
-            // Setup
-            m = new layer.Message({
-                client: client
-            });
-            spyOn(client, "_updateMessageId");
-            var id = m.id;
-
-            // Run
-            m._populateFromServer({
-                id: "dohId",
-                sender: {
-                    user_id: "999"
-                },
-                parts: [{mime_type: "text/plain", body: "Doh!"}]
-            });
-
-            // Posttest
-            expect(client._updateMessageId).toHaveBeenCalledWith(m, id);
-        });
-
-        it("Should cache the tempId", function() {
-            // Setup
-            m = new layer.Message({
-                client: client
-            });
-            var id = m.id;
-
-            // Run
-            m._populateFromServer({
-                id: "dohId",
-                sender: {
-                    user_id: "999"
-                },
-                parts: [{mime_type: "text/plain", body: "Doh!"}]
-            });
-
-            // Posttest
-            expect(m._tempId).toEqual(id);
-            expect(m._tempId).not.toEqual(m.id);
-        });
-    });
-
-    // tested by _populateFromServer
-    xdescribe("The getPartById() method", function() {});
-
-    describe("The _handlePatchEvent() method", function() {
-        it("Should call __updateRecipientStatus", function() {
-            // Setup
-            var m = new layer.Message({
-                client: client
-            });
-            spyOn(m, "__updateRecipientStatus");
-
-            // Run
-            m.recipientStatus.a = "delivered";
-            m._handlePatchEvent({
-                a: "delivered"
-            }, {
-                a: "sent"
-            }, ["recipient_status.a"]);
-
-            // Posttest
-            expect(m.__updateRecipientStatus).toHaveBeenCalledWith({a: "delivered"}, {a: "sent"});
-        });
-    });
-
-    describe("The _xhr() method", function() {
-        var m;
-        beforeEach(function() {
-            m = conversation.createMessage("hello");
-        });
-
-        afterEach(function() {
-            if (!m.isDestroyed) m.destroy();
-        });
-
-        it("Should throw an error if destroyed", function() {
-            // Setup
-            m.destroy();
-
-            // Run
-            expect(function() {
-                m._xhr({});
-            }).toThrowError(layer.LayerError.dictionary.isDestroyed);
-        });
-
-        it("Should throw an error if the message does not have a conversation", function() {
-            // Setup
-            m.conversationId = null;
-
-            // Run
-            expect(function() {
-                m._xhr({url: ""});
-            }).toThrowError(layer.LayerError.dictionary.conversationMissing);
-        });
-
-        it("Should throw an error if the request fails to specify a url", function() {
-            // Run
-            expect(function() {
-                m._xhr({method: "GET"});
-            }).toThrowError(layer.LayerError.dictionary.urlRequired);
-        });
-
-
-        it("Should add path to url", function() {
-            spyOn(client, "xhr");
-            m.url = "https://doh.com/ray";
-            options = {url: "/hey"};
-            m._xhr(options);
-            expect(options.url).toEqual("https://doh.com/ray/hey");
-        });
-
-        it("Should not require prefixed slash", function() {
-            spyOn(client, "xhr");
-            m.url = "https://doh.com/ray";
-            options = {url: "hey"};
-            m._xhr(options);
-            expect(options.url).toEqual("https://doh.com/ray/hey");
-        });
-
-        it("Should add query to url", function() {
-            spyOn(client, "xhr");
-            m.url = "https://doh.com/ray";
-            options = {url: "?hey"};
-            m._xhr(options);
-            expect(options.url).toEqual("https://doh.com/ray?hey");
-        });
-
-        it("Should call _setupSyncObject", function() {
-            spyOn(m, "_setupSyncObject");
-            m._xhr({url: "hey"});
-            expect(m._setupSyncObject).toHaveBeenCalledWith(undefined);
-        });
-
-        it("Should call client.xhr", function() {
-            spyOn(client, "xhr");
-            m._xhr({url: "hey"});
-            expect(client.xhr).toHaveBeenCalledWith(jasmine.objectContaining({
-                url: jasmine.any(Function),
-                sync: jasmine.any(Object)
-            }), undefined);
-        });
-
-        it("Should use a function that returns a url", function() {
-            var f;
-            spyOn(client, "xhr").and.callFake(function(args) {
-                f = args.url;
-            });
-            m._xhr({url: "hey"});
-            m.url = "http://dogs.eat.me";
-            expect(f()).toEqual("http://dogs.eat.me/hey");
-        });
-    });
 
     describe("The _setupSyncObject() method", function() {
         var m;
@@ -1883,8 +1523,6 @@ describe("The Messages class", function() {
             });
         });
     });
-
-
 
     describe("The getText() method", function() {
         it("Should return '' if no matching parts", function() {

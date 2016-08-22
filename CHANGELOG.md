@@ -2,7 +2,7 @@
 
 ## 1.1.0
 
-This release introduces one minor breaking change: there will be no more use of `temp_layer:///object-type/UUID` IDs.
+This release introduces one minor breaking change: there will be no more use of `temp_layer:///object-type/UUID` IDs.  Any code that looks at IDs or watches for changes to IDs _may_ need review.
 
 * Deleting with MY_DEVICES
   * In addition to calling conversation.delete(layer.Constants.DELETION_MODE.ALL) and message.delete(layer.Constants.DELETION_MODE.ALL), you can now delete Messages and Conversation from your user's devices Only using layer.Constants.DELETION_MODE.MY_DEVICES.
@@ -11,6 +11,13 @@ This release introduces one minor breaking change: there will be no more use of 
   * Message.sender.displayName: If you have configured display names for your users using Identity Tokens or the Platform API, then these display names will show up as `sender.displayName` in Messages you receive.
   * Message.sender.avatarUrl: If you have configured avatar URLs for your users using Identity Tokens or the Platform API, then these display names will show up as `sender.avatarUrl` in Messages you receive.
 * Deduplication
+  * If a response is not received to a request to create a Conversation or Message, it will be retried with deduplication support to insure that if it was created before, a duplicate is not created on retry.
+  * Message and Conversation IDs no longer change as they are created.  Note: A Conversation ID can change if creating a Distinct Conversation and a matching Conversation is found on the server -- in this case, the ID will change from the proposed ID to the ID of the matching Conversation.
+  * When a Message is created, it no longer triggers a "messages:change" with "property": "id".  However,
+    it does trigger a "messages:change" event with "property" of "position".
+  * Use of "temp_layer:///" IDs is removed.
+* Improved error logging
+
 
 ## 1.0.12
 

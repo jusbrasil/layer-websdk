@@ -448,12 +448,6 @@ describe("The Query Class", function() {
             expect(requests.mostRecent().url).toEqual(client.url + "/conversations?sort_by=last_message&page_size=32");
         });
 
-        it("Should call without from_id if last Conversation has temp id", function() {
-            query.data.push(client.createConversation(["b"]));
-            query._runConversation(33);
-            expect(requests.mostRecent().url).toEqual(client.url + "/conversations?sort_by=created_at&page_size=33");
-        });
-
         it("Should call with from_id", function() {
             query.data.push(client.createConversation(["b"]));
             query.data[0].syncState = layer.Constants.SYNC_STATE.SYNCED;
@@ -509,14 +503,6 @@ describe("The Query Class", function() {
           });
         });
 
-        it("Should return a UUID from a temp id predicate", function() {
-          query.predicate = 'conversation.id = \'temp_' + conversation.id + '\''
-          expect(query._getConversationPredicateIds()).toEqual({
-            uuid: conversation.id.replace(/layer\:\/\/\/conversations\//, ""),
-            id: "temp_" + conversation.id
-          });
-        });
-
         it("Should return a undefined from an unquoted predicate", function() {
           query.predicate = 'conversation.id = ' + conversation.id;
           expect(query._getConversationPredicateIds()).toBe(undefined);
@@ -541,7 +527,6 @@ describe("The Query Class", function() {
     describe("The _runMessage() method", function() {
         var query;
         beforeEach(function() {
-            conversation.id = conversation.id.replace(/temp_/, '');
             client._conversationsHash[conversation.id] = conversation;
             var tmp = layer.Query.prototype._run;
             layer.Query.prototype._run = function() {}
@@ -583,17 +568,7 @@ describe("The Query Class", function() {
             expect(query.isFiring).toBe(false);
         });
 
-        it("Should update _predicate for temp conversation id", function() {
-            var conversation1 = client.createConversation(["zzz"]);
-
-            query.isFiring = false;
-            query.predicate = 'conversation.id = "' + conversation1.id + '"';
-            query._predicate = '';
-            query._runMessage(40);
-            expect(query._predicate).toEqual(conversation1.id);
-        });
-
-        it("Should update _predicate for non-temp conversation id", function() {
+        it("Should update _predicate", function() {
             query.isFiring = false;
             query.predicate = 'conversation.id = "' + conversation.id + '"';
             query._predicate = '';
@@ -653,6 +628,24 @@ describe("The Query Class", function() {
             query._runMessage(45);
             query._runMessage(45);
             expect(requests.count()).toEqual(1);
+        });
+
+         it("Should refuse to call if Conversation unsaved", function() {
+            var m1 = new layer.Message({
+                client: client,
+                fromServer: responses.message1,
+            });
+            var m2 = new layer.Message({
+                client: client,
+                fromServer: responses.message2,
+            });
+            requests.reset();
+
+            conversation.lastMessage = conversation.createMessage("hi");
+            conversation.syncState = layer.Constants.SYNC_STATE.SAVING;
+            query.data = [m1, m2];
+            query._runMessage(45);
+            expect(requests.count()).toEqual(0);
         });
 
         it("Should call _processRunResults", function() {
@@ -1411,7 +1404,7 @@ describe("The Query Class", function() {
             it("Should find the Conversation and apply Conversation ID changes without reordering and using a new data array", function() {
                 // Setup
                 var id = conversation.id;
-                var tempId = "temp_" + id;
+                var tempId = layer.Util.generateUUID();
                 query.data[1].id = tempId;
                 var data = query.data;
                 conversation._clearObject();
@@ -1630,7 +1623,7 @@ describe("The Query Class", function() {
             it("Should find the Conversation and apply Conversation ID changes but not reorder", function() {
                 // Setup
                 var id = conversation.id;
-                var tempId = "temp_" + id;
+                var tempId = layer.Util.generateUUID();
                 query.data[1].id = tempId;
                 var data = query.data = [conversation2.toObject(), conversation.toObject()];
                 conversation._clearObject();
@@ -2214,17 +2207,12 @@ describe("The Query Class", function() {
             message = conversation.createMessage("hi");
             query.data = [conversation.createMessage("hi 0"), message, conversation.createMessage("hi 2")];
 
-            var id = message.id.replace(/temp_/, "");
-            var tempId = "temp_" + id;
-            message.id = tempId;
-            message._clearObject();
-            var data = query.data = [message.toObject()];
-            message._clearObject();
-            message.id = id;
+            var oldPosition = 5;
+            var newPosition = message.position = 15;
             evt = new layer.LayerEvent({
-                property: "id",
-                oldValue: tempId,
-                newValue: id,
+                property: "position",
+                oldValue: oldPosition,
+                newValue: newPosition,
                 target: message
             }, "messages:change");
         });
@@ -2310,49 +2298,18 @@ describe("The Query Class", function() {
             query.destroy();
         });
 
-
-
-        it("Should find the Message and apply Message ID changes if dataType is object and index has not changed", function() {
-            // Setup
-            var id = message.id.replace(/temp_/, "");
-            var tempId = "temp_" + id;
-            message.id = tempId;
-            message._clearObject();
-            var data = query.data = [message.toObject()];
-            message._clearObject();
-            message.id = id;
-            var evt = new layer.LayerEvent({
-                property: "id",
-                oldValue: tempId,
-                newValue: id,
-                target: message
-            }, "messages:change");
-
-            // Run
-            query._handleMessageChangeEvent(evt);
-
-            // Posttest
-            expect(query.data).not.toBe(data);
-            expect(query.data[0].id).toEqual(id);
-            expect(data[0].id).toEqual(tempId);
-        });
-
         it("Should call _handleMessagePositionChange and make no changes if that method reports it handled everything", function() {
             // Setup
-            var id = message.id.replace(/temp_/, "");
-            var tempId = "temp_" + id;
-            message.id = tempId;
-            message._clearObject();
+            var oldPosition =  5;
+            var newPosition = message.position = 10;
+            spyOn(query, "_handleMessagePositionChange").and.returnValue(true);
+            var evt = new layer.LayerEvent({
+                property: "position",
+                oldValue: oldPosition,
+                newValue: newPosition,
+                target: message
+            }, "messages:change");
             var data = query.data = [message.toObject()];
-            message._clearObject();
-            message.id = id;
-            spyOn(query, "_handleMessagePositionChange").and.returnValue(true);
-            var evt = new layer.LayerEvent({
-                property: "id",
-                oldValue: tempId,
-                newValue: id,
-                target: message
-            }, "messages:change");
 
             // Run
             query._handleMessageChangeEvent(evt);
@@ -2361,34 +2318,6 @@ describe("The Query Class", function() {
             expect(query.data).toBe(data);
             expect(query._handleMessagePositionChange).toHaveBeenCalledWith(evt, 0);
         });
-
-
-        it("Should call _handleMessagePositionChange with original index if ID change and dataType is instance", function() {
-            // Setup
-            query.dataType = "instance";
-            var id = message.id.replace(/temp_/, "");
-            var tempId = "temp_" + id;
-            message.id = tempId;
-            message._clearObject();
-            var data = query.data = [message];
-            message._clearObject();
-            message.id = id;
-            spyOn(query, "_handleMessagePositionChange").and.returnValue(true);
-            var evt = new layer.LayerEvent({
-                property: "id",
-                oldValue: tempId,
-                newValue: id,
-                target: message
-            }, "messages:change");
-
-            // Run
-            query._handleMessageChangeEvent(evt);
-
-            // Posttest
-            expect(query.data).toBe(data);
-            expect(query._handleMessagePositionChange).toHaveBeenCalledWith(evt, 0);
-        });
-
 
         it("Should not touch data array if dataType is object but item not in the data", function() {
             var evt = new layer.LayerEvent({

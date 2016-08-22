@@ -55,7 +55,9 @@ describe("The Messages class", function() {
         it("Should create a default sender value", function() {
             expect(message.sender).toEqual({
                 userId: "",
-                name: ""
+                name: "",
+                displayName: "",
+                avatarUrl: ""
             });
         });
 
@@ -1302,8 +1304,15 @@ describe("The Messages class", function() {
             }).toThrowError(layer.LayerError.dictionary.isDestroyed);
         });
 
+        it("Should fail if invalid deletion mode", function() {
+            // Run
+            expect(function() {
+                m.delete(false);
+            }).toThrowError(layer.LayerError.dictionary.deletionModeUnsupported);
+        });
 
-        it("Should call _xhr", function() {
+
+        it("Should call _xhr for ALL", function() {
             // Setup
             spyOn(m, "_xhr");
 
@@ -1312,7 +1321,35 @@ describe("The Messages class", function() {
 
             // Posttest
             expect(m._xhr).toHaveBeenCalledWith({
-                url: '?destroy=true',
+                url: '?mode=all_participants',
+                method: 'DELETE'
+            }, jasmine.any(Function));
+        });
+
+        it("Should treat true as ALL for backwards compatibility", function() {
+            // Setup
+            spyOn(m, "_xhr");
+
+            // Run
+            m.delete(true);
+
+            // Posttest
+            expect(m._xhr).toHaveBeenCalledWith({
+                url: '?mode=all_participants',
+                method: 'DELETE'
+            }, jasmine.any(Function));
+        });
+
+        it("Should call _xhr for my_devices if MY_DEVICES", function() {
+            // Setup
+            spyOn(m, "_xhr");
+
+            // Run
+            m.delete(layer.Constants.DELETION_MODE.MY_DEVICES);
+
+            // Posttest
+            expect(m._xhr).toHaveBeenCalledWith({
+                url: '?mode=my_devices',
                 method: 'DELETE'
             }, jasmine.any(Function));
         });
@@ -1337,7 +1374,7 @@ describe("The Messages class", function() {
             expect(m.isDestroyed).toBe(true);
         });
 
-        it("Should load a new copy if deletion fails", function() {
+        it("Should load a new copy if deletion fails from something other than not_found", function() {
           var tmp = layer.Message.load;
           spyOn(layer.Message, "load");
           spyOn(m, "_xhr").and.callFake(function(args, callback) {
@@ -1351,6 +1388,25 @@ describe("The Messages class", function() {
           // Posttest
           expect(m.isDestroyed).toBe(true);
           expect(layer.Message.load).toHaveBeenCalledWith(m.id, client);
+
+          // Cleanup
+          layer.Message.load = tmp;
+        })
+
+        it("Should NOT load a new copy if deletion fails from not_found", function() {
+          var tmp = layer.Message.load;
+          spyOn(layer.Message, "load");
+          spyOn(m, "_xhr").and.callFake(function(args, callback) {
+            callback({success: false, data: {id: 'not_found'}});
+          });
+
+
+          // Run
+          m.delete(layer.Constants.DELETION_MODE.ALL);
+
+          // Posttest
+          expect(m.isDestroyed).toBe(true);
+          expect(layer.Message.load).not.toHaveBeenCalled();
 
           // Cleanup
           layer.Message.load = tmp;
@@ -1549,7 +1605,7 @@ describe("The Messages class", function() {
             expect(m.recipientStatus).toEqual(data.recipient_status);
         });
 
-        it("Should set sender.name", function() {
+        it("Should set sender.userId", function() {
             m = new layer.Message({
                 client: client
             });
@@ -1559,6 +1615,8 @@ describe("The Messages class", function() {
             expect(m.sender.userId).toEqual(responses.message1.sender.user_id);
             expect(m.sender.userId.length > 0).toBe(true);
             expect(m.sender.name).toEqual("");
+            expect(m.sender.displayName).toEqual("");
+            expect(m.sender.avatarUrl).toEqual("");
         });
 
         it("Should set sender.name", function() {
@@ -1572,6 +1630,28 @@ describe("The Messages class", function() {
 
             expect(m.sender.name).toEqual("Fred");
             expect(m.sender.userId).toEqual("");
+        });
+
+        it("Should set sender.displayName", function() {
+            m = new layer.Message({
+                client: client
+            });
+            var data = JSON.parse(JSON.stringify(responses.message1));
+            data.sender.display_name = 'Doh';
+            m._populateFromServer(data);
+
+            expect(m.sender.displayName).toEqual('Doh');
+        });
+
+        it("Should set sender.avatarUrl", function() {
+            m = new layer.Message({
+                client: client
+            });
+            var data = JSON.parse(JSON.stringify(responses.message1));
+            data.sender.avatar_url = 'Doh';
+            m._populateFromServer(data);
+
+            expect(m.sender.avatarUrl).toEqual('Doh');
         });
 
         it("Should call _setSynced", function() {

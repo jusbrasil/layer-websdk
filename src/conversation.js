@@ -528,16 +528,24 @@ class Conversation extends Syncable {
     this.participants = participants;
   }
 
-
   /**
-   * Delete the Conversation from the server.
+   * Delete the Conversation from the server, but deletion mode may cause user to remain a participant.
    *
-   * This call will support various deletion modes.  Calling without a deletion mode is deprecated.
+   * Many apps will prefer to use layer.Conversation.leave over layer.Conversation.delete.  Leaving a Conversation
+   * allows others to continue that Conversation, and removes it entirely from the user's account.
+   *
+   * This call will support various deletion modes.
    *
    * Deletion Modes:
    *
    * * layer.Constants.DELETION_MODE.ALL: This deletes the local copy immediately, and attempts to also
    *   delete the server's copy.
+   * * layer.Constants.DELETION_MODE.MY_DEVICES: Deletes the local copy immediately, and attempts to delete it from all
+   *   of my devices.  Other users retain access.
+   * * true: For backwards compatibility thi is the same as ALL.
+   *
+   * MY_DEVICES does not remove this user as a participant.  That means a new Message on this Conversation will recreate the
+   * Conversation for this user.  See layer.Conversation.leave() instead.
    *
    * Executes as follows:
    *
@@ -547,26 +555,55 @@ class Conversation extends Syncable {
    *    triggering a conversations:add event.
    *
    * @method delete
-   * @param {number} deletionMode - layer.Constants.DELETION_MODE.ALL is only supported mode at this time
-   * @return null
+   * @param {String} deletionMode
    */
   delete(mode) {
-    const id = this.id;
-    const modeValue = 'true';
-    if (mode === true) {
-      logger.warn('Calling Message.delete without a mode is deprecated');
-      mode = Constants.DELETION_MODE.ALL;
-    }
-    if (!mode || mode !== Constants.DELETION_MODE.ALL) {
-      throw new Error(LayerError.dictionary.deletionModeUnsupported);
+    if (this.isDestroyed) throw new Error(LayerError.dictionary.isDestroyed);
+
+    let queryStr;
+    switch (mode) {
+      case Constants.DELETION_MODE.ALL:
+      case true:
+        queryStr = `mode=${Constants.DELETION_MODE.ALL}`;
+        break;
+      case Constants.DELETION_MODE.MY_DEVICES:
+        queryStr = `mode=${Constants.DELETION_MODE.MY_DEVICES}&leave=false`;
+        break;
+      default:
+        throw new Error(LayerError.dictionary.deletionModeUnsupported);
     }
 
+    this._delete(queryStr);
+  }
+
+ /**
+   * Delete the Conversation from the server and removes this user as a participant.
+   *
+   * @method leave
+   */
+  leave() {
+    if (this.isDestroyed) throw new Error(LayerError.dictionary.isDestroyed);
+    this._delete(`mode=${Constants.DELETION_MODE.MY_DEVICES}&leave=true`);
+  }
+
+  /**
+   * Delete the Conversation from the server (internal version).
+   *
+   * This version of Delete takes a Query String that is packaged up by
+   * layer.Conversation.delete and layer.Conversation.leave.
+   *
+   * @method _delete
+   * @private
+   * @param {string} queryStr - Query string for the DELETE request
+   */
+  _delete(queryStr) {
+    const id = this.id;
     const client = this.getClient();
     this._xhr({
       method: 'DELETE',
-      url: '?destroy=' + modeValue,
+      url: '?' + queryStr,
     }, result => {
-      if (!result.success) Conversation.load(id, client);
+      if (!result.success && (!result.data || result.data.id !== 'not_found')) Conversation.load(id, client);
     });
 
     this._deleted();

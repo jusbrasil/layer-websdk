@@ -1,5 +1,17 @@
 # Javascript SDK Change Log
 
+## 1.1.0
+
+This release introduces one minor breaking change: there will be no more use of `temp_layer:///object-type/UUID` IDs.
+
+* Deleting with MY_DEVICES
+  * In addition to calling conversation.delete(layer.Constants.DELETION_MODE.ALL) and message.delete(layer.Constants.DELETION_MODE.ALL), you can now delete Messages and Conversation from your user's devices Only using layer.Constants.DELETION_MODE.MY_DEVICES.
+  * layer.Conversation.leave() can be called to remove yourself as a participant and remove the Conversation from your devices.
+* Message sender object contains new properties when receiving a Message
+  * Message.sender.displayName: If you have configured display names for your users using Identity Tokens or the Platform API, then these display names will show up as `sender.displayName` in Messages you receive.
+  * Message.sender.avatarUrl: If you have configured avatar URLs for your users using Identity Tokens or the Platform API, then these display names will show up as `sender.avatarUrl` in Messages you receive.
+* Deduplication
+
 ## 1.0.12
 
 * JSDuck fixes

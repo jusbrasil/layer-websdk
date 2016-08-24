@@ -380,8 +380,8 @@ exports.asciiInit = (version) => {
   let line1 = split[0] || '';
   let line2 = split[1] || '';
 
-  line1 = line1 + new Array(12 - line1.length).join(' ')
-  line2 = line2 + new Array(13 - line2.length).join(' ')
+  line1 += new Array(12 - line1.length).join(' ')
+  line2 += new Array(13 - line2.length).join(' ')
 
   return `
   =BBBBBBBBBBBBBBBBB@

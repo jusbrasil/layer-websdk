@@ -415,4 +415,48 @@ describe("The Util Library", function() {
         expect(layer.Util.includes([1,3,5], 4)).toBe(false);
       });
     });
+
+    describe("The asciiInit() method", function() {
+      it("Should return ASCII Layer logo with version 1.0.0", function() {
+        expect(layer.Util.asciiInit('1.0.0')).toEqual(
+        '\n  =BBBBBBBBBBBBBBBBB@' +
+        '\n  ]BM               "BB' +
+        '\n  8BH    Layer       BB' +
+        '\n  8BH                BB' +
+        '\n  8BN    WebSDK      BB' +
+        '\n  8BBw   v1.0.0      BB' +
+        '\n  8BBBw              BB' +
+        '\n  8BBBBBw            BB' +
+        '\n  jBBBBBBBBK@===,,,,gBB' +
+        '\n   \'MMMMMMMMMMMMMMMMM\'');
+      });
+
+      it("Should return ASCII Layer logo with version 2.10.37", function() {
+        expect(layer.Util.asciiInit('2.10.37')).toEqual(
+        '\n  =BBBBBBBBBBBBBBBBB@' +
+        '\n  ]BM               "BB' +
+        '\n  8BH    Layer       BB' +
+        '\n  8BH                BB' +
+        '\n  8BN    WebSDK      BB' +
+        '\n  8BBw   v2.10.37    BB' +
+        '\n  8BBBw              BB' +
+        '\n  8BBBBBw            BB' +
+        '\n  jBBBBBBBBK@===,,,,gBB' +
+        '\n   \'MMMMMMMMMMMMMMMMM\'');
+      });
+
+      it("Should return ASCII Layer logo with version 2.0.0-beta.3", function() {
+        expect(layer.Util.asciiInit('2.0.0-beta.3')).toEqual(
+        '\n  =BBBBBBBBBBBBBBBBB@' +
+        '\n  ]BM               "BB' +
+        '\n  8BH    Layer       BB' +
+        '\n  8BH                BB' +
+        '\n  8BN    WebSDK      BB' +
+        '\n  8BBw   v2.0.0      BB' +
+        '\n  8BBBw  beta.3      BB' +
+        '\n  8BBBBBw            BB' +
+        '\n  jBBBBBBBBK@===,,,,gBB' +
+        '\n   \'MMMMMMMMMMMMMMMMM\'');
+      });
+    });
 });

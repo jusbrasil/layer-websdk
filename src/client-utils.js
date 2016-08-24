@@ -370,3 +370,28 @@ exports.doesObjectMatch = (requestedData, actualData) => {
  */
 exports.includes = (items, value) => items.indexOf(value) !== -1;
 
+/**
+ * Some ASCII art when client initializes
+ */
+exports.asciiInit = (version) => {
+  if (!version || version == '{{GRUNT_REPLACE_VERSION}}') return 'Missing version';
+
+  const split = version.split('-');
+  let line1 = split[0] || '';
+  let line2 = split[1] || '';
+
+  line1 = line1 + new Array(12 - line1.length).join(' ')
+  line2 = line2 + new Array(13 - line2.length).join(' ')
+
+  return `
+  =BBBBBBBBBBBBBBBBB@
+  ]BM               "BB
+  8BH    Layer       BB
+  8BH                BB
+  8BN    WebSDK      BB
+  8BBw   v${line1}BB
+  8BBBw  ${line2}BB
+  8BBBBBw            BB
+  jBBBBBBBBK@===,,,,gBB
+   'MMMMMMMMMMMMMMMMM'`;
+ }

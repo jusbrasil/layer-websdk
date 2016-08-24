@@ -111,6 +111,8 @@ class Client extends ClientAuth {
     this._initComponents();
 
     this.on('online', this._connectionRestored.bind(this));
+
+    logger.info(Util.asciiInit(Client.version));
   }
 
   /* See parent method docs */
@@ -1596,6 +1598,7 @@ Client._supportedEvents = [
 
 Client.plugins = {};
 
+Client.version = '{{GRUNT_REPLACE_VERSION}}';
 
 Root.initClass.apply(Client, [Client, 'Client']);
 module.exports = Client;

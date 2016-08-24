@@ -1,5 +1,6 @@
 /* eslint-disable */
 describe("Websocket tests", function() {
+    var userId = "Frodo";
     var convId1 = layer.Conversation.prefixUUID + layer.Util.generateUUID();
     var convId2 = layer.Conversation.prefixUUID + layer.Util.generateUUID();
     var convId3 = layer.Conversation.prefixUUID + layer.Util.generateUUID();
@@ -21,10 +22,7 @@ describe("Websocket tests", function() {
             "id": convId1,
             "created_at": "2014-09-15T04:44:47+00:00",
             "last_message": responses.message2,
-            "participants": [
-                {user_id: "1234", id: "layer:///identities/1234"},
-                {user_id: "5678", id: "layer:///identities/5678"}
-            ],
+            "participants": ["1234", "5678"],
             "metadata": {
                 "name" : "My Conversation",
                 "_starred": true
@@ -85,22 +83,7 @@ describe("Websocket tests", function() {
             appId: "Client1"
         });
 
-        var identity = new layer.Identity({
-          clientId: client.appId,
-          userId: "c",
-          id: "layer:///identities/" + "c",
-          firstName: "first",
-          lastName: "last",
-          phoneNumber: "phone",
-          emailAddress: "email",
-          metadata: {},
-          publicKey: "public",
-          avatarUrl: "avatar",
-          displayName: "display",
-          syncState: layer.Constants.SYNC_STATE.SYNCED,
-          isFullIdentity: true
-        });
-        client.user = identity;
+        client.user = {userId: userId};
 
         client._clientAuthenticated();
         socket = client.socketManager;
@@ -206,7 +189,7 @@ describe("Websocket tests", function() {
             socket._onMessage({data: JSON.stringify({
                 "type": "change",
                 body: {
-                    "operation": "update",
+                    "operation": "patch",
                     "object": {
                         "type": "Conversation",
                         "id": c1.id
@@ -260,247 +243,6 @@ describe("Websocket tests", function() {
             expect(Boolean(client.getConversation(c1.id, false))).toEqual(true);
         });
 
-        describe("Patching Participants", function() {
-            it("Should patch set participants", function() {
-                // Setup
-                var conv = client.getConversation(c1.id, false);
-                spyOn(conv, "_trigger");
-                var fred = new layer.Identity({
-                    id: "layer:///identities/fred",
-                    userId: "fred",
-                    client: client
-                });
-                var joe = new layer.Identity({
-                    id: "layer:///identities/joe",
-                    userId: "joe",
-                    client: client
-                });
-
-                // Pretest
-                var initialValue = [client.getIdentity("a"), client.getIdentity("b"), client.getIdentity("c")];
-                expect(conv.participants).toEqual(initialValue);
-
-                // Run
-                client.socketChangeManager._handlePatch({
-                    "operation": "update",
-                    "object": {
-                        "type": "Conversation",
-                        "id": "layer:///conversations/conversation2",
-                        id: c1.id
-                    },
-                    "data": [{
-                        "operation": "set",
-                        "property": "participants",
-                        "value": [fred, joe]
-                    }]
-                });
-                jasmine.clock().tick(1);
-
-                // Posttest
-                expect(conv.participants).toEqual([fred, joe]);
-                expect(conv._trigger)
-                .toHaveBeenCalledWith("conversations:change", jasmine.objectContaining({
-                    changes: [{
-                        oldValue: initialValue,
-                        newValue: [fred, joe],
-                        add:  [fred, joe],
-                        remove: initialValue,
-                        property: "participants"
-                    }],
-                    target: conv,
-                    isChange: true,
-                    eventName: "conversations:change"
-                }));
-            });
-
-
-            it("Should patch add participants", function() {
-                // Setup
-                var conv = client.getConversation(c1.id, false);
-                spyOn(conv, "trigger");
-
-                // Pretest
-                var a = client.getIdentity("a"),
-                    b = client.getIdentity("b"),
-                    c = client.getIdentity("c");
-                expect(conv.participants).toEqual([a, b, c]);
-
-                // Run
-                client.socketChangeManager._handlePatch({
-                    "operation": "update",
-                    "object": {
-                        "type": "Conversation",
-                        id: c1.id
-                    },
-                    "data": [{
-                        "operation": "add",
-                        "property": "participants",
-                        id: "layer:///identities/fred",
-                        "value": {user_id: "fred", id: "layer:///identities/fred"}
-                    },{
-                        "operation": "add",
-                        "property": "participants",
-                        id: "layer:///identities/joe",
-                        "value": {user_id: "joe", id: "layer:///identities/joe"}
-                    }]
-                });
-                jasmine.clock().tick(1);
-                var fred = client.getIdentity("fred"),
-                    joe = client.getIdentity("joe");
-
-                // Posttest
-                expect(conv.participants).toEqual([a, b, c, fred, joe]);
-                expect(conv.trigger)
-                .toHaveBeenCalledWith("conversations:change", jasmine.objectContaining({
-                    changes: [{
-                        oldValue: [a, b, c],
-                        newValue: [a, b, c, fred, joe],
-                        add: [fred, joe],
-                        remove: [],
-                        property: "participants"
-                    }],
-                    eventName: "conversations:change",
-                    target: conv
-                }));
-            });
-
-            it("Should patch remove participants", function() {
-                // Setup
-                var conv = client.getConversation(c1.id, false);
-                spyOn(conv, "_trigger");
-
-                // Pretest
-                var a = client.getIdentity("a"),
-                    b = client.getIdentity("b"),
-                    c = client.getIdentity("c");
-                expect(conv.participants).toEqual([a, b, c]);
-
-                // Run
-                client.socketChangeManager._handlePatch({
-                    "operation": "update",
-                    "object": {
-                        "type": "Conversation",
-                        id: c1.id
-                    },
-                    "data": [{
-                        "operation": "remove",
-                        "property": "participants",
-                        "id": "layer:///identities/a"
-                    }, {
-                        "operation": "remove",
-                        "property": "participants",
-                        id: "layer:///identities/c"
-                    }]
-                });
-                jasmine.clock().tick(1);
-
-                // Posttest
-                expect(conv.participants).toEqual([b]);
-                expect(conv._trigger)
-                .toHaveBeenCalledWith("conversations:change", jasmine.objectContaining({
-                    changes: [{
-                        add: [],
-                        remove: [a, c],
-                        oldValue: [a, b, c],
-                        newValue: [b],
-                        property: "participants"
-                    }],
-                    eventName: "conversations:change",
-                    target: conv,
-                    isChange: true
-                }));
-            });
-
-            it("Should patch add/remove participants", function() {
-                // Setup
-                var conv = client.getConversation(c1.id, false);
-                spyOn(conv, "trigger");
-
-                // Pretest
-                var a = client.getIdentity("a"),
-                    b = client.getIdentity("b"),
-                    c = client.getIdentity("c");
-                expect(conv.participants).toEqual([a, b, c]);
-
-                // Run
-
-                client.socketChangeManager._handlePatch({
-                    "operation": "update",
-                    "object": {
-                        "type": "Conversation",
-                        id: c1.id
-                    },
-                    "data": [{
-                        "operation": "add",
-                        "property": "participants",
-                        id: "layer:///identities/fred",
-                        "value": {user_id: "fred", id: "layer:///identities/fred"}
-                    }, {
-                        "operation": "add",
-                        "property": "participants",
-                        id: "layer:///identities/joe",
-                        "value": {user_id: "joe", id: "layer:///identities/joe"}
-                    }, {
-                        "operation": "remove",
-                        "property": "participants",
-                         id: "layer:///identities/a"
-                    }]
-                });
-                jasmine.clock().tick(1);
-
-                // Posttest
-                var fred = client.getIdentity("fred"),
-                    joe = client.getIdentity("joe");
-                expect(conv.participants).toEqual([b, c, fred, joe]);
-                expect(conv.trigger)
-                .toHaveBeenCalledWith("conversations:change", jasmine.objectContaining({
-                    changes: [{
-                        add: [fred, joe],
-                        remove: [a],
-                        oldValue: [a, b, c],
-                        newValue: [b, c, fred, joe],
-                        property: "participants"
-                    }],
-                    target: conv,
-                    isChange: true,
-                    eventName: "conversations:change"
-                }));
-            });
-
-            it("Should do nothing if matches current participants", function() {
-                // Setup
-                var conv = client.getConversation(c1.id, false);
-                spyOn(conv, "trigger");
-
-                // Pretest
-                var a = client.getIdentity("a"),
-                    b = client.getIdentity("b"),
-                    c = client.getIdentity("c");
-                expect(conv.participants).toEqual([a, b, c]);
-
-                // Run
-                client.socketChangeManager._handlePatch({
-                    "operation": "update",
-                    "object": {
-                        "type": "Conversation",
-                        id: c1.id
-                    },
-                    "data": [{
-                        "operation": "add",
-                        "property": "participants",
-                        id: "layer:///identities/a",
-                        "value": {user_id: "a", id: "layer:///identities/a"}
-                    }]
-                });
-                jasmine.clock().tick(1);
-
-                // Posttest
-                expect(conv.participants).toEqual([a, b, c]);
-                expect(conv.trigger).not.toHaveBeenCalled();
-            });
-
-        });
-
         describe("Patching Metadata", function() {
 
             it("Should add and remove metadata", function() {
@@ -515,7 +257,7 @@ describe("Websocket tests", function() {
 
                 // Run
                 client.socketChangeManager._handlePatch({
-                    "operation": "update",
+                    "operation": "patch",
                     "object": {
                         "type": "Conversation",
                         id: c2.id
@@ -612,32 +354,30 @@ describe("Websocket tests", function() {
 
         it("Should apply recipientStatus patches", function() {
             // Setup
-            var a = client.getIdentity("a"),
-                b = client.getIdentity("b"),
-                c = client.getIdentity("c");
-            c1.participants = [a, b, c];
+            c1.participants = ["a", "b", "c", "Frodo"];
             m1.conversationId = c1.id;
             m1.recipientStatus = {
-                "layer:///identities/a": "read",
-                "layer:///identities/b": "delivered",
-                "layer:///identities/c": "sent"
+                "a": "read",
+                "b": "delivered",
+                "c": "sent",
+                "Frodo": "read"
             };
             expect(m1.readStatus).toEqual(layer.Constants.RECIPIENT_STATE.SOME);
 
             // Run
             client.socketChangeManager._handlePatch({
-                "operation": "update",
+                "operation": "patch",
                 "object": {
                     "type": "Message",
                     "id": m1.id
                 },
                 "data": [{
                     "operation": "set",
-                    "property": "recipient_status.layer:///identities/b",
+                    "property": "recipient_status.b",
                     "value": "read"
                 },{
                     "operation": "set",
-                    "property": "recipient_status.layer:///identities/c",
+                    "property": "recipient_status.c",
                     "value": "read"
                 }]
             });
@@ -645,9 +385,10 @@ describe("Websocket tests", function() {
 
             // Posttest
             expect(m1.recipientStatus).toEqual({
-                "layer:///identities/a": "read",
-                "layer:///identities/b": "read",
-                "layer:///identities/c": "read"
+                "a": "read",
+                "b": "read",
+                "c": "read",
+                "Frodo": "read"
             });
             expect(m1.readStatus).toEqual(layer.Constants.RECIPIENT_STATE.ALL);
         });
@@ -660,7 +401,7 @@ describe("Websocket tests", function() {
 
             // Run
             client.socketChangeManager._handlePatch({
-                "operation": "update",
+                "operation": "patch",
                 "object": {
                     "type": "Conversation",
                     "id": c2.id
@@ -691,7 +432,7 @@ describe("Websocket tests", function() {
 
             // Run
             client.socketChangeManager._handlePatch({
-                "operation": "update",
+                "operation": "patch",
                 "object": {
                     "type": "Conversation",
                     "id": c2.id
@@ -727,7 +468,7 @@ describe("Websocket tests", function() {
 
             // Run
             client.socketChangeManager._handlePatch({
-                "operation": "update",
+                "operation": "patch",
                 "object": {
                     "type": "Conversation",
                     "id": c2.id
@@ -788,10 +529,7 @@ describe("Websocket tests", function() {
                       id: c1.id,
                       "created_at": "2014-09-15T04:44:47+00:00",
                       "last_message": responses.message2,
-                      "participants": [
-                          {user_id: "1234", id: "layer:///identities/1234"},
-                          {user_id: "5678", id: "layer:///identities/5678"}
-                      ],
+                      "participants": ["1234", "5678"],
                       "metadata": {
                           "name" : "My Conversation",
                           "_starred": true
@@ -818,7 +556,7 @@ describe("Websocket tests", function() {
             var c = new layer.Conversation({
                 fromServer: {
                     id: c1.id,
-                    participants: [{user_id: "a", id: "layer:///identities/a"}, {user_id: "b", id: "layer:///identities/b"}]
+                    participants: ["a", "b"],
                 },
                 client: client
             });
@@ -838,10 +576,7 @@ describe("Websocket tests", function() {
                         "id": c1.id,
                         "created_at": "2014-09-15T04:44:47+00:00",
                         "last_message": responses.message2,
-                        "participants": [
-                            {user_id: "1234", id: "layer:///identities/1234"},
-                            {user_id: "5678", id: "layer:///identities/5678"}
-                        ],
+                        "participants": ["1234", "5678"],
                         "metadata": {
                             "name" : "My Conversationzz",
                             "_starred": true
@@ -855,7 +590,7 @@ describe("Websocket tests", function() {
             // Post test
             // If c is still the object in the client, then no new object was added
             // to replace it
-            expect(c.participants).toEqual([client.getIdentity("1234"), client.getIdentity("5678")]);
+            expect(c.participants).toEqual(["1234", "5678"]);
             expect(c.metadata).toEqual({
                 "name" : "My Conversationzz",
                 "_starred": true
@@ -872,7 +607,7 @@ describe("Websocket tests", function() {
             var c = new layer.Conversation({
                 fromServer: {
                     id: c1.id,
-                    participants: [{user_id: "a", id: "layer:///identities/a"}, {user_id: "b", id: "layer:///identities/b"}]
+                    participants: ["a", "b"],
                 },
                 client: client
             });
@@ -883,7 +618,7 @@ describe("Websocket tests", function() {
                         id: c.id,
                         url: c.url
                     },
-                    sender: {user_id: "a", id: "layer:///identities/a"},
+                    sender: {user_id: "a"},
                     parts: [{body: "hello", mime_type: "text/plain"}],
                     id: m1.id,
                     sent_at: new Date().toISOString()
@@ -914,10 +649,7 @@ describe("Websocket tests", function() {
                         id: c1.id,
                         "created_at": "2014-09-15T04:44:47+00:00",
                         "last_message": responses.message2,
-                        "participants": [
-                            {user_id: "1234", id: "layer:///identities/1234"},
-                            {user_id: "5678", id: "layer:///identities/5678"}
-                        ],
+                        "participants": ["1234", "5678"],
                         "metadata": {
                             "name" : "My Conversationzz",
                             "_starred": true
@@ -959,9 +691,10 @@ describe("Websocket tests", function() {
             }).send();
 
             expect(m.recipientStatus).toEqual({
-              "layer:///identities/a": "pending",
-              "layer:///identities/b": "pending",
-              "layer:///identities/c": "read"
+              "a": "pending",
+              "b": "pending",
+              "c": "pending",
+              "Frodo": "read"
             });
 
             var sample = JSON.parse(JSON.stringify(sampleConv));
@@ -976,11 +709,11 @@ describe("Websocket tests", function() {
 
             // Posttest
             expect(m.recipientStatus).toEqual({
-              "layer:///identities/1234": "pending",
-              "layer:///identities/5678": "pending",
-              "layer:///identities/111": "delivered",
-              "layer:///identities/777": "read",
-              "layer:///identities/999": "read"
+              "1234": "pending",
+              "5678": "pending",
+              "111": "delivered",
+              "777": "read",
+              "999": "read"
             });
         });
 
@@ -992,9 +725,10 @@ describe("Websocket tests", function() {
             }).send();
 
             expect(m.recipientStatus).toEqual({
-              "layer:///identities/a": "pending",
-              "layer:///identities/b": "pending",
-              "layer:///identities/c": "read"
+              "a": "pending",
+              "b": "pending",
+              "c": "pending",
+              "Frodo": "read"
             });
 
             var sample = JSON.parse(JSON.stringify(sampleMess));

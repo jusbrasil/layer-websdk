@@ -1,7 +1,7 @@
 /*eslint-disable */
 describe("The Syncable Class", function() {
     var appId = "Fred's App";
-
+    var userId = "Frodo";
     var conversation,
         message,
         announcement,
@@ -18,22 +18,7 @@ describe("The Syncable Class", function() {
             url: "https://huh.com"
         });
         client.sessionToken = "sessionToken";
-        client.user = new layer.Identity({
-          clientId: client.appId,
-          userId: "Frodo",
-          id: "layer:///identities/" + client.userId,
-          firstName: "first",
-          lastName: "last",
-          phoneNumber: "phone",
-          emailAddress: "email",
-          metadata: {},
-          publicKey: "public",
-          avatarUrl: "avatar",
-          displayName: "display",
-          syncState: layer.Constants.SYNC_STATE.SYNCED,
-          isFullIdentity: true,
-          sessionOwner: true
-        });
+        client.user = {userId: userId};
         client.isTrustedDevice = true;
         client._clientAuthenticated();
         getObjectResult = null;
@@ -196,49 +181,7 @@ describe("The Syncable Class", function() {
             expect(ident._load).toHaveBeenCalledWith();
         });
       });
-
-      describe("Identity subclass", function() {
-        it("Should return an Identity", function() {
-          expect(layer.Identity.load(responses.useridentity.id, client) instanceof layer.Identity).toEqual(true);
-          expect(layer.Syncable.load(responses.useridentity.id, client) instanceof layer.Identity).toEqual(true);
-        });
-
-        it("Should throw error if no client", function() {
-          expect(function() {
-            layer.Identity.load(responses.useridentity.id);
-          }).toThrowError(layer.LayerError.dictionary.clientMissing);
-          expect(layer.LayerError.dictionary.clientMissing).toEqual(jasmine.any(String));
-        });
-
-        it("Should populateFromServer and trigger loaded if db has data", function() {
-            getObjectResult = {display_name: "hey ho"};
-
-            // Run
-            var ident = layer.Identity.load(responses.useridentity.id, client);
-            spyOn(ident, "_populateFromServer");
-            spyOn(ident, "trigger");
-            jasmine.clock().tick(11);
-
-            // Posttest
-            expect(ident._populateFromServer).toHaveBeenCalledWith({display_name: "hey ho"});
-            expect(ident.trigger).toHaveBeenCalledWith('identities:loaded');
-        });
-
-        it("Should call _load", function() {
-            // Run
-            var ident = layer.Identity.load(responses.useridentity.id, client);
-            spyOn(ident, "_populateFromServer");
-            spyOn(ident, "_load");
-            jasmine.clock().tick(11);
-
-            // Posttest
-            expect(ident._populateFromServer).not.toHaveBeenCalled();
-            expect(ident._load).toHaveBeenCalledWith();
-        });
-      });
     });
-
-
 
     describe("The _load() method", function() {
         it("Should set the syncState to LOADING", function() {

@@ -1,6 +1,7 @@
 /* eslint-disable */
 describe("The Content class", function() {
     var appId = "Fred's App";
+    var userId = "Frodo";
     var conversation,
         client,
         requests;
@@ -17,24 +18,7 @@ describe("The Content class", function() {
             reset: true,
             url: "https://doh.com"
         });
-        client.userId = "999";
-        client.user = new layer.Identity({
-          clientId: client.appId,
-          userId: client.userId,
-          id: "layer:///identities/" + client.userId,
-          firstName: "first",
-          lastName: "last",
-          phoneNumber: "phone",
-          emailAddress: "email",
-          metadata: {},
-          publicKey: "public",
-          avatarUrl: "avatar",
-          displayName: "display",
-          syncState: layer.Constants.SYNC_STATE.SYNCED,
-          isFullIdentity: true,
-          sessionOwner: true
-        });
-
+        client.user = {userId: userId};
 
         client._clientAuthenticated();
         getObjectsResult = [];

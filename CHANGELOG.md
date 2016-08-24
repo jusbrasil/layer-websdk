@@ -1,48 +1,6 @@
 # Web SDK Change Log
 
-## 2.0.0 Beta 4
-
-* Fixes streamlined receipts sync queue
-
-## 2.0.0 Beta 3
-
-* layer.Client.websocketUrl is now a public property
-* No longer writes Blobs to indexedDB as the Evil Safari Smurfs (v9.1.2) have decided not to support that.  Now writes base64.
-* Client.logout() now provides a callback notifying you when its safe to navigate away from the page.  Failure to use this may cause
-  data to not be deleted on logging out.  Especially problematic in Safari.
-* Simplified access to MessagePart data; `MessagePart.body` will be either a string or Blob, never a base64 string
-  * Adds static property `layer.MessagePart.TextualMimeTypes` which stores an array of strings and regular expressions used to test if a MIME Type represents textual data.
-  * Any textual MessagePart will have a `body` that is `null` (Rich Content which hasn't been fetched via `part.fetchContent()`) or a String.
-  * Any non-textual MessagePart will have a `body` that is `null` (Rich Content which hasn't been fetched via `part.fetchContent()`) or a Blob)
-  * Note that these rules apply regardless of whether the MessagePart size is less than or greater than 2KB, and regardless of whether its transmitted
-    as base64 data.  This means any renderer has only to test for `null` or a value to handle its content.
-
-## 2.0.0 Beta 1
-
-#### Major new Features
-
-* Identities
-  * Layer now supports an Identity object, represented here as a `layer.Identity` class containing a User ID, Identity ID, Display Name and an Avatar URL.
-  * Message sender is now represented using an Identity Object
-  * Conversation participants is now an array of Identity Objects
-  * Identities can be queried to find all of the users that the authenticated user is following.
-* Announcements
-  * Introduces the `layer.Announcement` class
-  * You can now Query for Announcements sent to your users
-* Persistence
-  * IndexedDB can store all Conversations, Messages, Announcements and Identities if the `layer.Client.isTrustedDevice` property is set to `true`
-  * Applications can now run entirely offline, populating `layer.Query` data using IndexedDB databases.
-  * `layer.Client.persistenceFeatures` gives more precise control over what is persisted
-
-#### Minor new Features
-
-* Deleting with `MY_DEVICES`
-  * In addition to calling `conversation.delete(layer.Constants.DELETION_MODE.ALL)` and `message.delete(layer.Constants.DELETION_MODE.ALL)`, you can now delete Messages and Conversation from your user's devices Only using `layer.Constants.DELETION_MODE.MY_DEVICES`.
-  * `layer.Conversation.leave()` can be called to remove yourself as a participant and remove the Conversation from your devices.
-* No more `temp_layer:///` IDs, no more ID change events
-  * Sending a Message will no longer result in a `messages:change` event that contains a change to the Message ID; the Message ID that is assigned when creating the Message will be accepted by the server.
-  * Conversations may still get an ID change event in the case where a Distinct Conversation is created, and a matching Distinct Conversation is found on the server.
-* Querys on Messages in a Conversation still syncing its data will retry until syncing is done or a full page of data is loaded.  (WEB-1053)
+## 1.1.0
 
 #### Breaking Changes
 
@@ -53,21 +11,38 @@
   * layer.Client.connect is now called to start authentication
   * layer.Client.connectWithSession can also be used to startup the client, if you already have a Session Token.
   * layer.Client.login has been removed; see layer.Client.connect instead
-* layer.Conversation
-  * `participants` property is now an array of `layer.Identity` objects rather than User IDs
-  * Removes support for `client.createConversation(participantArray)` shorthand; now requires `client.createConversation({participants:
-   participantArray})`.
-  * Creating a Conversation, adding, removing and setting participants of an existing Conversation all accept Identity IDs or Identity Objects rather than User IDs.
-    * For backwards compatibility, we are continuing to accept User IDs (`UserA`).  For now.
-* layer.Message
-  * The `recipient_status` property is now a hash of Identity IDs, not User IDs
-* layer.TypingIndicators.TypingIndicatorListener
-  * The `typing-indicator-change` event now delivers arrays of Identities instead of User IDs
+  * layer.Client.logout(callback) now takes a callback so that you can wait for all async activities to complete before navigating away.
 * layer.User has been removed.
 * layer.Query no longer defaults to a Conversation model; this must be specificied explicitly.
+* layer.MessagePart has changed in the following ways:
+  * The encoding property is removed
+  * `MessagePart.body` will always be either a String or a Blob; it will never be base64 encoded.  Base64 encoded data will be transformed to string or Blob before your application receives it.
+  * Adds static property `layer.MessagePart.TextualMimeTypes` which stores an array of strings and regular expressions used to test if a MIME Type represents textual data.
+  * Any textual MessagePart will have a `body` that is `null` (Rich Content which hasn't been fetched via `part.fetchContent()`) or a String.
+  * Any non-textual MessagePart will have a `body` that is `null` (Rich Content which hasn't been fetched via `part.fetchContent()`) or a Blob)
+  * Note that these rules apply regardless of whether the MessagePart size is less than or greater than 2KB, and regardless of whether its transmitted
+    as base64 data.  This means any renderer has only to test for `null` or a value to handle its content.
+* layer.Query no longer defaults to querying Conversations; you must specify a `model` property.
 
-#### Miscellaneous Changes
+#### Major new Features
 
+* Announcements
+  * Introduces the `layer.Announcement` class
+  * You can now Query for Announcements sent to your users
+* Persistence (this is still considered experimental and must be explicitly enabled)
+  * IndexedDB can store all Conversations, Messages and Announcements if the `layer.Client.isTrustedDevice` property is set to `true`, and `layer.Client.persistenceEnabled` is set to `true`.
+  * Applications can now run entirely offline, populating `layer.Query` data using IndexedDB databases.
+
+
+#### Minor new Features
+
+* Deleting Messages and Conversations from my devices, but not from other users devices:
+  * In addition to calling `conversation.delete(layer.Constants.DELETION_MODE.ALL)` and `message.delete(layer.Constants.DELETION_MODE.ALL)`, you can now delete Messages and Conversation from your user's devices Only using `layer.Constants.DELETION_MODE.MY_DEVICES`.
+  * `layer.Conversation.leave()` can be called to remove yourself as a participant and remove the Conversation from your devices.
+* No more `temp_layer:///` IDs, no more ID change events
+  * Sending a Message will no longer result in a `messages:change` event that contains a change to the Message ID; the Message ID that is assigned when creating the Message will be accepted by the server.
+  * Conversations may still get an ID change event in the case where a Distinct Conversation is created, and a matching Distinct Conversation is found on the server.
+* Querys on Messages in a Conversation still syncing its data will retry until syncing is done or a full page of data is loaded.  (WEB-1053)
 * Deduplication
   * If a response is not received to a request to create a Conversation or Message, it will be retried with deduplication support to insure that if it was created before, a duplicate is not created on retry.
 * layer.Message
@@ -75,9 +50,6 @@
 * layer.Client
   * Adds a `user` property containing a `layer.Identity` instance representing the authenticated user of this session.
 * layer.OnlineStateManager: Now starts managing isOnline state as soon as `client.connect()` or `client.connectWithSession()` are called.
-* layer.MessagePart
-  * Where once you would have received a Blob representing text that was greater than 2K and had to be sent as Rich Content, now that blob is converted to a string before delivering it to your application
-  * You can customize which Mime Types are treated as text with `layer.MessagePart.TextualMimeTypes`
 
 #### Bug Fixes
 
@@ -85,6 +57,29 @@
   * Updates Caching to uncache any Messages and Conversations that aren't part of any Query's results 10 minutes (configurable) after websocket event announces their arrival.
   * Removes Conversation.lastMessage from cache once its no longer a query result.
   * Fixes cache cleanup on deleting a Query.
+
+## 1.0.12
+
+* JSDuck fixes
+
+## 1.0.11
+
+* Fixes bug in Query retry when server is syncing
+* Adds `server-syncing-state` event to layer.Query to notify app when Query is waiting for more data, and when it is done getting more data.
+
+## 1.0.10
+
+* Destroying a Query now notifies any view using it that its data has been cleared. (WEB-1106)
+* Websocket URL can now be customized via client.websocketUrl property
+
+## 1.0.9
+
+* Uses new server side support to retry any Query for Messages on a Conversation that is still syncing,
+and is delivering fewer than the requested number of Messages. (WEB-1053)
+
+## 1.0.8
+
+* Disable Query Retry by default
 
 ## 1.0.7
 

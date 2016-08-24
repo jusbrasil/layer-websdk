@@ -1,12 +1,8 @@
 /* eslint-disable */
 describe("The Message class", function() {
     var appId = "Fred's App";
-
+    var userId = 'Frodo';
     var conversation,
-        userIdentity1,
-        userIdentity2,
-        userIdentity3,
-        userIdentity4,
         client,
         requests;
 
@@ -20,46 +16,7 @@ describe("The Message class", function() {
             url: "https://doh.com"
         });
 
-        client.user = new layer.Identity({
-          clientId: client.appId,
-          userId: "999",
-          id: "layer:///identities/999",
-          firstName: "first",
-          lastName: "last",
-          phoneNumber: "phone",
-          emailAddress: "email",
-          metadata: {},
-          publicKey: "public",
-          avatarUrl: "avatar",
-          displayName: "display",
-          syncState: layer.Constants.SYNC_STATE.SYNCED,
-          isFullIdentity: true,
-          sessionOwner: true
-        });
-        userIdentity1 = new layer.Identity({
-            clientId: client.appId,
-            id: "layer:///identities/1",
-            displayName: "1",
-            userId: "1"
-        });
-        userIdentity2 = new layer.Identity({
-            clientId: client.appId,
-            id: "layer:///identities/2",
-            displayName: "2",
-            userId: "2"
-        });
-        userIdentity3 = new layer.Identity({
-            clientId: client.appId,
-            id: "layer:///identities/3",
-            displayName: "3",
-            userId: "3"
-        });
-        userIdentity4 = new layer.Identity({
-            clientId: client.appId,
-            id: "layer:///identities/4",
-            displayName: "4",
-            userId: "4"
-        });
+        client.user = {userId: userId};
 
         client._clientAuthenticated();
         getObjectResult = null;
@@ -239,7 +196,7 @@ describe("The Message class", function() {
                 is_unread: true,
                 parts: [],
                 recipient_status: {
-                    "layer:///identities/a": "read"
+                    "a": "read"
                 }
             };
 
@@ -503,12 +460,12 @@ describe("The Message class", function() {
 
         it("Should return 4 readCount, 4 deliveredCount ignoring logged in user", function() {
             expect(message._getReceiptStatus({
-                "layer:///identities/a": "read",
-                "layer:///identities/b": "read",
-                "layer:///identities/c": "read",
-                "layer:///identities/d": "read",
-                "layer:///identities/999": "read"
-            }, "layer:///identities/999")).toEqual({
+                "a": "read",
+                "b": "read",
+                "c": "read",
+                "d": "read",
+                "Frodo": "read"
+            }, "Frodo")).toEqual({
                 readCount: 4,
                 deliveredCount: 4
             });
@@ -516,12 +473,12 @@ describe("The Message class", function() {
 
         it("Should return 2 readCount, 4 deliveredCount ignoring logged in user", function() {
             expect(message._getReceiptStatus({
-                "layer:///identities/a": "delivered",
-                "layer:///identities/b": "delivered",
-                "layer:///identities/c": "read",
-                "layer:///identities/d": "read",
-                "layer:///identities/999": "read"
-            }, "layer:///identities/999")).toEqual({
+                "a": "delivered",
+                "b": "delivered",
+                "c": "read",
+                "d": "read",
+                "Frodo": "read"
+            }, "Frodo")).toEqual({
                 readCount: 2,
                 deliveredCount: 4
             });
@@ -529,11 +486,11 @@ describe("The Message class", function() {
 
         it("Should return 3 readCount, 5 deliveredCount if no logged user", function() {
             expect(message._getReceiptStatus({
-                "layer:///identities/a": "delivered",
-                "layer:///identities/b": "delivered",
-                "layer:///identities/c": "read",
-                "layer:///identities/d": "read",
-                "layer:///identities/999": "read"
+                "a": "delivered",
+                "b": "delivered",
+                "c": "read",
+                "d": "read",
+                "Frodo": "read"
             }, "")).toEqual({
                 readCount: 3,
                 deliveredCount: 5
@@ -542,12 +499,12 @@ describe("The Message class", function() {
 
         it("Should return 0 readCount, 1 deliveredCount ignoring logged in user", function() {
             expect(message._getReceiptStatus({
-                "layer:///identities/a": "sent",
-                "layer:///identities/b": "delivered",
-                "layer:///identities/c": "sent",
-                "layer:///identities/d": "sent",
-                "layer:///identities/999": "sent"
-            }, "layer:///identities/999")).toEqual({
+                "a": "sent",
+                "b": "delivered",
+                "c": "sent",
+                "d": "sent",
+                "Frodo": "sent"
+            }, "Frodo")).toEqual({
                 readCount: 0,
                 deliveredCount: 1
             });
@@ -557,7 +514,7 @@ describe("The Message class", function() {
     describe("The __getRecipientStatus() method", function() {
       var m;
       beforeEach(function() {
-          conversation.participants = [userIdentity1, userIdentity2, userIdentity3, client.user];
+          conversation.participants = ['a', 'b', 'c', userId];
           var messageData = JSON.parse(JSON.stringify(responses.message1));
 
           m = new layer.Message({
@@ -573,12 +530,12 @@ describe("The Message class", function() {
 
       it("Should return the participant's value if its not NEW", function() {
         m.recipientStatus = {
-            "layer:///identities/a": "sent",
-            "layer:///identities/b": "delivered",
-            "layer:///identities/d": "read",
-            "layer:///identities/999": "read"
+            "a": "sent",
+            "b": "delivered",
+            "d": "read",
+            "Frodo": "read"
           };
-        expect(m.recipientStatus["layer:///identities/b"]).toEqual(layer.Constants.RECEIPT_STATE.DELIVERED);
+        expect(m.recipientStatus["b"]).toEqual(layer.Constants.RECEIPT_STATE.DELIVERED);
         expect(layer.Constants.RECEIPT_STATE.DELIVERED.length > 0).toBe(true);
       });
 
@@ -590,12 +547,10 @@ describe("The Message class", function() {
 
       it("Should return PENDING for users who have not yet been sent the Message", function() {
         m.recipientStatus = {};
-        expect(m.recipientStatus).toEqual({
-          "layer:///identities/1": layer.Constants.RECEIPT_STATE.PENDING,
-          "layer:///identities/2": layer.Constants.RECEIPT_STATE.PENDING,
-          "layer:///identities/3": layer.Constants.RECEIPT_STATE.PENDING,
-          "layer:///identities/999": layer.Constants.RECEIPT_STATE.READ
-        });
+        var recip = {};
+        m.getConversation().participants.forEach(function(userId) {recip[userId] = layer.Constants.RECEIPT_STATE.PENDING;});
+        recip[userId] = layer.Constants.RECEIPT_STATE.READ;
+        expect(m.recipientStatus).toEqual(recip);
         expect(layer.Constants.RECEIPT_STATE.PENDING.length > 0).toBe(true);
       });
     });
@@ -603,13 +558,13 @@ describe("The Message class", function() {
     describe("The __updateRecipientStatus() method", function() {
         var m;
         beforeEach(function() {
-            conversation.participants = [userIdentity1, userIdentity2, userIdentity3, client.user];
+            conversation.participants = ['a', 'b', 'c', userId];
             var messageData = JSON.parse(JSON.stringify(responses.message1));
             messageData.recipient_status = {
-              "layer:///identities/a": "sent",
-              "layer:///identities/b": "delivered",
-              "layer:///identities/d": "read",
-              "layer:///identities/999": "read"
+              "a": "sent",
+              "b": "delivered",
+              "d": "read",
+              "Frodo": "read"
             };
             m = new layer.Message({
               client: client,
@@ -625,17 +580,15 @@ describe("The Message class", function() {
         it("Should allow the recipientStatus property to update", function() {
             // Run
             m.recipientStatus = {
-                "layer:///identities/z": "sent"
+                "z": "sent"
             };
+            var recip = {};
+            m.getConversation().participants.forEach(function(userId) {recip[userId] = layer.Constants.RECEIPT_STATE.PENDING;});
+            recip[userId] = layer.Constants.RECEIPT_STATE.READ;
+            recip.z = "sent";
 
             // Posttest
-            expect(m.recipientStatus).toEqual({
-              "layer:///identities/z": "sent",
-              "layer:///identities/1": "pending",
-              "layer:///identities/2": "pending",
-              "layer:///identities/3": "pending",
-              "layer:///identities/999": "read"
-            });
+            expect(m.recipientStatus).toEqual(recip);
         });
 
         it("Should set isRead/isUnread", function() {
@@ -647,7 +600,7 @@ describe("The Message class", function() {
             expect(m.isUnread).toEqual(true);
 
             // Run
-            m.recipientStatus = {"layer:///identities/999": "read"};
+            m.recipientStatus = {"Frodo": "read"};
 
             // Posttest
             expect(m.isRead).toEqual(true);
@@ -660,10 +613,10 @@ describe("The Message class", function() {
 
             // Run
             m.recipientStatus = {
-                "layer:///identities/999": "read",
-                "layer:///identities/a": "sent",
-                "layer:///identities/b": "delivered",
-                "layer:///identities/c": "read"
+                "Frodo": "read",
+                "a": "sent",
+                "b": "delivered",
+                "c": "read"
             };
 
             // Posttest
@@ -675,30 +628,30 @@ describe("The Message class", function() {
             spyOn(m, "_triggerAsync");
             m.sender = client.user;
             m.__recipientStatus = {
-                "layer:///identities/999": "read",
-                "layer:///identities/a": "sent",
-                "layer:///identities/b": "delivered",
-                "layer:///identities/c": "delivered"
+                "Frodo": "read",
+                "a": "sent",
+                "b": "delivered",
+                "c": "delivered"
             };
-            m.__recipientStatus[client.user.id] = "read";
+            m.__recipientStatus[client.user.userId] = "read";
             var oldValue = m.__recipientStatus;
 
             // Run
             m.recipientStatus = {
-                "layer:///identities/999": "read",
-                "layer:///identities/a": "sent",
-                "layer:///identities/b": "delivered",
-                "layer:///identities/c": "read"
+                "Frodo": "read",
+                "a": "sent",
+                "b": "delivered",
+                "c": "read"
             };
 
             // Posttest
             expect(m._triggerAsync).toHaveBeenCalledWith("messages:change", {
                 oldValue: oldValue,
                 newValue: {
-                    "layer:///identities/999": "read",
-                    "layer:///identities/a": "sent",
-                    "layer:///identities/b": "delivered",
-                    "layer:///identities/c": "read"
+                    "Frodo": "read",
+                    "a": "sent",
+                    "b": "delivered",
+                    "c": "read"
                 },
                 property: "recipientStatus"
             })
@@ -709,20 +662,20 @@ describe("The Message class", function() {
             spyOn(m, "_triggerAsync");
             m.sender.__userId = 'a';
             m.__recipientStatus = {
-                "layer:///identities/999": "read",
-                "layer:///identities/a": "sent",
-                "layer:///identities/b": "delivered",
-                "layer:///identities/c": "delivered"
+                "Frodo": "read",
+                "a": "sent",
+                "b": "delivered",
+                "c": "delivered"
             };
-            m.__recipientStatus[client.user.id] = "read";
+            m.__recipientStatus[client.user.userId] = "read";
             var oldValue = m.__recipientStatus;
 
             // Run
             m.recipientStatus = {
-                "layer:///identities/999": "read",
-                "layer:///identities/a": "sent",
-                "layer:///identities/b": "delivered",
-                "layer:///identities/c": "read"
+                "Frodo": "read",
+                "a": "sent",
+                "b": "delivered",
+                "c": "read"
             };
 
             // Posttest
@@ -734,16 +687,16 @@ describe("The Message class", function() {
             spyOn(m, "_triggerAsync");
             m.sender.__userId = 'a';
             m.__recipientStatus = {
-                "layer:///identities/999": "read",
-                "layer:///identities/a": "sent",
-                "layer:///identities/b": "delivered",
-                "layer:///identities/c": "delivered"
+                "Frodo": "read",
+                "a": "sent",
+                "b": "delivered",
+                "c": "delivered"
             };
-            m.__recipientStatus[client.user.id] = "delivered";
+            m.__recipientStatus[client.user.userId] = "delivered";
             var oldValue = m.__recipientStatus;
 
             var newValue = JSON.parse(JSON.stringify(oldValue));
-            newValue[client.user.id] = "read";
+            newValue[client.user.userId] = "read";
 
             // Run
             m.recipientStatus = newValue;
@@ -761,12 +714,12 @@ describe("The Message class", function() {
             spyOn(m, "_triggerAsync");
             m.sender.__userId = 'a';
             m.__recipientStatus = {
-                "layer:///identities/999": "read",
-                "layer:///identities/a": "sent",
-                "layer:///identities/b": "delivered",
-                "layer:///identities/c": "delivered"
+                "Frodo": "read",
+                "a": "sent",
+                "b": "delivered",
+                "c": "delivered"
             };
-            m.__recipientStatus[client.user.id] = "sent";
+            m.__recipientStatus[client.user.userId] = "sent";
             var oldValue = m.__recipientStatus;
 
             var newValue = JSON.parse(JSON.stringify(oldValue));
@@ -783,7 +736,7 @@ describe("The Message class", function() {
     describe("The _setReceiptStatus() method", function() {
         var m;
         beforeEach(function() {
-            conversation.participants = [userIdentity1, userIdentity2, userIdentity3, client.user];
+            conversation.participants = ['a', 'b', 'c', userId];
             m = new layer.Message({
                 parts: "hello",
                 conversation: conversation,
@@ -1966,53 +1919,6 @@ describe("The Message class", function() {
             expect(m.recipientStatus).toEqual(data.recipient_status);
         });
 
-        it("Should set sender to existing Identity", function() {
-            m = new layer.Message({
-                client: client
-            });
-            var data = JSON.parse(JSON.stringify(responses.message1));
-            expect(client.getIdentity(data.sender.user_id)).toEqual(jasmine.any(layer.Identity));
-
-            m._populateFromServer(data);
-
-            expect(m.sender).toBe(client.getIdentity(data.sender.user_id));
-        });
-
-        it("Should set sender to a new Identity", function() {
-            m = new layer.Message({
-                client: client
-            });
-            var data = JSON.parse(JSON.stringify(responses.message1));
-            delete client._identitiesHash[data.sender.id];
-            data.sender.id += "1";
-            data.sender.user_id += "1";
-            expect(client.getIdentity(data.sender.user_id)).toEqual(null);
-
-            m._populateFromServer(data);
-
-            // Posttest
-            expect(m.sender).toEqual(jasmine.any(layer.Identity));
-            expect(m.sender.userId).toEqual(data.sender.user_id);
-            expect(m.sender.id).toEqual(data.sender.id);
-        });
-
-        it("Should set sender.display_name to an anonymous Identity", function() {
-            client._identitiesHash = {};
-            m = new layer.Message({
-                client: client
-            });
-            var data = JSON.parse(JSON.stringify(responses.message1));
-            data.sender = {display_name: "Fred"};
-
-            m._populateFromServer(data);
-
-            expect(m.sender.displayName).toEqual("Fred");
-            expect(m.sender.userId).toEqual("");
-            expect(m.sender.id).toEqual("");
-            expect(m._events).toEqual({});
-            expect(m.sender).toEqual(jasmine.any(layer.Identity));
-            expect(client._identitiesHash).toEqual({});
-        });
 
         it("Should call _setSynced", function() {
             // Setup
@@ -2067,15 +1973,15 @@ describe("The Message class", function() {
             spyOn(m, "__updateRecipientStatus");
 
             // Run
-            m.recipientStatus["layer:///identities/a"] = "delivered";
+            m.recipientStatus["a"] = "delivered";
             m._handlePatchEvent({
-                "layer:///identities/a": "delivered"
+                "a": "delivered"
             }, {
-                "layer:///identities/a": "sent"
-            }, ["recipient_status.layer:///identities/a"]);
+                "a": "sent"
+            }, ["recipient_status.a"]);
 
             // Posttest
-            expect(m.__updateRecipientStatus).toHaveBeenCalledWith({"layer:///identities/a": "delivered"}, {"layer:///identities/a": "sent"});
+            expect(m.__updateRecipientStatus).toHaveBeenCalledWith({"a": "delivered"}, {"a": "sent"});
         });
     });
 
@@ -2315,7 +2221,7 @@ describe("The Message class", function() {
         it("Should send delivery receipt if not marked as delivered", function() {
             // Setup
             var data = JSON.parse(JSON.stringify(responses.message1));
-            data.recipient_status["layer:///identities/999"] = "sent";
+            data.recipient_status["Frodo"] = "sent";
             var tmp = layer.Message.prototype._sendReceipt;
             spyOn(layer.Message.prototype, "_sendReceipt");
 
@@ -2333,7 +2239,7 @@ describe("The Message class", function() {
         it("Should NOT send delivery receipt if marked as delivered", function() {
             // Setup
             var data = JSON.parse(JSON.stringify(responses.message1));
-            data.recipient_status["layer:///identities/999"] = "delivered";
+            data.recipient_status["Frodo"] = "delivered";
             var tmp = layer.Message.prototype.recipientStatus;
             spyOn(layer.Message.prototype, "recipientStatus");
 

@@ -2,7 +2,7 @@
 describe("Conversation Integration Tests", function() {
     var socket, client, syncManager, request;
     var appId = "Fred's App";
-    var userIdentity;
+    var userId = "Frodo";
 
     beforeEach(function() {
         jasmine.clock().install();
@@ -14,21 +14,7 @@ describe("Conversation Integration Tests", function() {
             isTrustedDevice: false
         });
         client.sessionToken = "sessionToken";
-        client.user = new layer.Identity({
-          clientId: client.appId,
-          userId: "Frodo",
-          id: "layer:///identities/" + "Frodo",
-          firstName: "first",
-          lastName: "last",
-          phoneNumber: "phone",
-          emailAddress: "email",
-          metadata: {},
-          publicKey: "public",
-          avatarUrl: "avatar",
-          displayName: "display",
-          syncState: layer.Constants.SYNC_STATE.SYNCED,
-          isFullIdentity: true
-        });
+        client.user = {userId: userId};
 
         client._clientAuthenticated();
         conversation = client._createObject(JSON.parse(JSON.stringify(responses.conversation1)));
@@ -48,12 +34,6 @@ describe("Conversation Integration Tests", function() {
             readyState: WebSocket.OPEN
         };
 
-        userIdentity = new layer.Identity({
-            clientId: client.appId,
-            id: "layer:///identities/6",
-            displayName: "6",
-            userId: "6"
-        });
         request = new layer.XHRSyncEvent({
             method: "POST",
             data: {hey: "ho"},
@@ -77,7 +57,7 @@ describe("Conversation Integration Tests", function() {
       syncManager.queue = [];
 
       // Run replaceParticipant and have it fail
-      conversation.replaceParticipants([client.user.userId, userIdentity.userId]);
+      conversation.replaceParticipants([client.user.userId, "6"]);
       requests.mostRecent().response({
         status: 500,
         data: {}
@@ -93,7 +73,7 @@ describe("Conversation Integration Tests", function() {
 
       // Posttest
       expect(conversation._triggerAsync).toHaveBeenCalledWith("conversations:change", jasmine.objectContaining({
-        oldValue: [client.user, userIdentity],
+        oldValue: [client.user.userId, "6"],
         newValue: client._fixIdentities(responses.conversation1.participants),
         property: "participants"
       }));

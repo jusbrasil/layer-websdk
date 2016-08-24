@@ -68,7 +68,7 @@ class Content extends Root {
           callback(null, result.data);
         }
       } else {
-        callback(result.data, null);
+        callback(result.data || 'Load Content Failed', null);
       }
     });
   }

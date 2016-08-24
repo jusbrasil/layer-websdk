@@ -2,6 +2,7 @@
 describe("The SyncEvent Classes", function() {
     var client;
     var appId = "Fred's App";
+    var userId = "Frodo";
     beforeEach(function() {
       jasmine.clock().install();
       client = new layer.Client({
@@ -9,23 +10,7 @@ describe("The SyncEvent Classes", function() {
             url: "https://huh.com"
       });
 
-      client.userId = 'Frodo';
-      client.user = new layer.Identity({
-          clientId: client.appId,
-          userId: client.userId,
-          id: "layer:///identities/" + client.userId,
-          firstName: "first",
-          lastName: "last",
-          phoneNumber: "phone",
-          emailAddress: "email",
-          metadata: {},
-          publicKey: "public",
-          avatarUrl: "avatar",
-          displayName: "display",
-          syncState: layer.Constants.SYNC_STATE.SYNCED,
-          isFullIdentity: true,
-          sessionOwner: true
-        });
+      client.user = {userId: userId};
 
         client._clientAuthenticated();
         client._clientReady();

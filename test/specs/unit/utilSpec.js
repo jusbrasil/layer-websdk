@@ -268,22 +268,7 @@ describe("The Util Library", function() {
         beforeEach(function() {
             client = new layer.Client({appId: "fred"});
 
-            client.user = new layer.Identity({
-                clientId: client.appId,
-                userId: "c",
-                id: "layer:///identities/c",
-                firstName: "first",
-                lastName: "last",
-                phoneNumber: "phone",
-                emailAddress: "email",
-                metadata: {},
-                publicKey: "public",
-                avatarUrl: "avatar",
-                displayName: "display",
-                syncState: layer.Constants.SYNC_STATE.SYNCED,
-                isFullIdentity: true,
-                sessionOwner: true
-            });
+            client.user = {userId: "Frodo"}
 
 
             client._clientAuthenticated();
@@ -310,8 +295,8 @@ describe("The Util Library", function() {
                 type: 'Conversation',
                 operations: [
                     {operation: "set", property: "unread_message_count", value: 5},
-                    {operation: "add", property: "participants", id: "layer:///identities/c", value: {id: "layer:///identities/c", url: "https:///heyho.com/identities/c", user_id: "c", display_name: "User C", avatar_url: null}},
-                    {operation: "remove", property: "participants", id: "layer:///identities/a"},
+                    {operation: "add", property: "participants", value: "c"},
+                    {operation: "remove", property: "participants", value: "a"},
                     {operation: "delete", property: "metadata.eat"},
                     {operation: "set", property: "lastMessage", id: message.id}
                 ]
@@ -329,14 +314,12 @@ describe("The Util Library", function() {
 
         it("Should add a participant", function() {
             layer.Util.layerParse(config);
-            var identityC = client.getIdentity("c");
-            expect(conversation.participants.indexOf(identityC)).not.toEqual(-1);
+            expect(conversation.participants.indexOf("c")).not.toEqual(-1);
         });
 
         it("Should remove a participant", function() {
             layer.Util.layerParse(config);
-            var identityA = client.getIdentity("a");
-            expect(conversation.participants.indexOf(identityA)).toEqual(-1);
+            expect(conversation.participants.indexOf("a")).toEqual(-1);
         });
 
         it("Should delete a metadata property", function() {
@@ -354,33 +337,34 @@ describe("The Util Library", function() {
 
         it("Should update recipientStatus", function() {
             message.recipientStatus = {
-                "layer:///identities/a": "sent",
-                "layer:///identities/b": "sent",
-                "layer:///identities/c": "read"
+                "a": "sent",
+                "b": "sent",
+                "c": "read"
             };
             layer.Util.layerParse({
                 client: client,
                 object: message,
                 type: 'Message',
                 operations: [
-                    {operation: "set", property: "recipient_status.layer:///identities/a", value: "read"},
-                    {operation: "set", property: "recipient_status.layer:///identities/b", value: "delivered"}
+                    {operation: "set", property: "recipient_status.a", value: "read"},
+                    {operation: "set", property: "recipient_status.b", value: "delivered"}
                 ]
             });
 
             // Posttest
             expect(message.recipientStatus).toEqual({
-                "layer:///identities/a": "read",
-                "layer:///identities/b": "delivered",
-                "layer:///identities/c": "read"
+                "a": "read",
+                "b": "delivered",
+                "c": "read",
+                "Frodo": "read"
             });
         });
 
         it("Should call __updateRecipientStatus", function() {
             message.recipientStatus = {
-                "layer:///identities/a": "sent",
-                "layer:///identities/b": "sent",
-                "layer:///identities/c": "read"
+                "a": "sent",
+                "b": "sent",
+                "c": "read"
             };
             spyOn(message, "__updateRecipientStatus");
             layer.Util.layerParse({
@@ -388,20 +372,22 @@ describe("The Util Library", function() {
                 object: message,
                 type: 'Message',
                 operations: [
-                    {operation: "set", property: "recipient_status.layer:///identities/a", value: "read"},
-                    {operation: "set", property: "recipient_status.layer:///identities/b", value: "delivered"}
+                    {operation: "set", property: "recipient_status.a", value: "read"},
+                    {operation: "set", property: "recipient_status.b", value: "delivered"}
                 ]
             });
 
             // Posttest
             expect(message.__updateRecipientStatus).toHaveBeenCalledWith({
-                "layer:///identities/a": "read",
-                "layer:///identities/b": "delivered",
-                "layer:///identities/c": "read"
+                "a": "read",
+                "b": "delivered",
+                "c": "read",
+                "Frodo": "read"
             }, {
-                "layer:///identities/a": "sent",
-                "layer:///identities/b": "sent",
-                "layer:///identities/c": "read"
+                "a": "sent",
+                "b": "sent",
+                "c": "read",
+                "Frodo": "read"
             });
         });
     });

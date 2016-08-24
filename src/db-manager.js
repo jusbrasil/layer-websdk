@@ -41,10 +41,6 @@ const TABLES = [
     },
   },
   {
-    name: 'identities',
-    indexes: {},
-  },
-  {
     name: 'syncQueue',
     indexes: {},
   },
@@ -80,10 +76,6 @@ class DbManager extends Root {
       this.client.on('messages:add', evt => this.writeMessages(evt.messages, false));
       this.client.on('messages:change', evt => this.writeMessages([evt.target], true));
       this.client.on('messages:delete', evt => this.deleteObjects('messages', [evt.target]));
-
-      this.client.on('identities:add', evt => this.writeIdentities(evt.identities, false));
-      this.client.on('identities:change', evt => this.writeIdentities([evt.target], true));
-      this.client.on('identities:unfollow', evt => this.deleteObjects('identities', [evt.target]));
     }
 
     this.client.syncManager.on('sync:add', evt => this.writeSyncEvents([evt.request], false));
@@ -224,7 +216,7 @@ class DbManager extends Root {
       const item = {
         id: conversation.id,
         url: conversation.url,
-        participants: this._getIdentityData(conversation.participants, true),
+        participants: conversation.participants,
         distinct: conversation.distinct,
         created_at: getDate(conversation.createdAt),
         metadata: conversation.metadata,
@@ -254,72 +246,6 @@ class DbManager extends Root {
       this._getConversationData(conversations.filter(conversation => !conversation.isDestroyed)), isUpdate, callback);
   }
 
-  /**
-   * Convert array of Identity instances into Identity DB Entries.
-   *
-   * @method _getIdentityData
-   * @private
-   * @param {layer.Identity[]} identities
-   * @param {boolean} writeBasicIdentity - Forces output as a Basic Identity
-   * @return {Object[]} identities
-   */
-  _getIdentityData(identities, writeBasicIdentity) {
-    return identities.filter((identity) => {
-      if (identity.isDestroyed || !identity.isFullIdentity && !writeBasicIdentity) return false;
-
-      if (identity._fromDB) {
-        identity._fromDB = false;
-        return false;
-      } else if (identity.isLoading) {
-        return false;
-      } else {
-        return true;
-      }
-    }).map((identity) => {
-      if (identity.isFullIdentity && !writeBasicIdentity) {
-        return {
-          id: identity.id,
-          url: identity.url,
-          user_id: identity.userId,
-          first_name: identity.firstName,
-          last_name: identity.lastName,
-          display_name: identity.displayName,
-          avatar_url: identity.avatarUrl,
-          metadata: identity.metadata,
-          public_key: identity.publicKey,
-          phone_number: identity.phoneNumber,
-          email_address: identity.emailAddress,
-          sync_state: identity.syncState,
-          type: identity.type,
-        };
-      } else {
-        return {
-          id: identity.id,
-          url: identity.url,
-          user_id: identity.userId,
-          display_name: identity.displayName,
-          avatar_url: identity.avatarUrl,
-        };
-      }
-    });
-  }
-
-  /**
-   * Writes an array of Identities to the Database.
-   *
-   * There are times when you will not know if this is an Insert or Update operation;
-   * if there is uncertainy, set `isUpdate` to false, and the correct end result will
-   * still be achieved (but less efficiently).
-   *
-   * @method writeIdentities
-   * @param {layer.Identity[]} identities - Array of Identities to write
-   * @param {boolean} isUpdate - If true, then update an entry; if false, insert an entry... and if one is found to already exist, update it.
-   * @param {Function} [callback]
-   */
-  writeIdentities(identities, isUpdate, callback) {
-    this._writeObjects('identities',
-      this._getIdentityData(identities), isUpdate, callback);
-  }
 
   /**
    * Convert array of Message instances into Message DB Entries.
@@ -363,7 +289,12 @@ class DbManager extends Root {
         };
       }),
       position: message.position,
-      sender: this._getIdentityData([message.sender], true)[0],
+      sender: {
+        name: message.sender.name,
+        user_id: message.sender.userId,
+        display_name: message.sender.displayName,
+        avatar_url: message.sender.avatarUrl,
+      },
       recipient_status: message.recipientStatus,
       sent_at: getDate(message.sentAt),
       received_at: getDate(message.receivedAt),
@@ -666,39 +597,6 @@ class DbManager extends Root {
     if (callback) callback(newData);
   }
 
-
-  /**
-   * Load all Identities from the database.
-   *
-   * @method loadIdentities
-   * @param {Function} callback
-   * @param {layer.Identity[]} callback.result
-   */
-  loadIdentities(callback) {
-    this._loadAll('identities', (data) => {
-      this._loadIdentitiesResult(data, callback);
-    });
-  }
-
-  /**
-   * Assemble all LastMessages and Identityy POJOs into layer.Message and layer.Identityy instances.
-   *
-   * @method _loadIdentitiesResult
-   * @private
-   * @param {Object[]} identities
-   * @param {Function} callback
-   * @param {layer.Identity[]} callback.result
-   */
-  _loadIdentitiesResult(identities, callback) {
-    // Instantiate and Register each Identity.
-    const newData = identities
-      .map(identity => this._createIdentity(identity) || this.client.getIdentity(identity.id))
-      .filter(identity => identity);
-
-    // Return the data
-    if (callback) callback(newData);
-  }
-
   /**
    * Instantiate and Register the Conversation from a conversation DB Entry.
    *
@@ -742,25 +640,6 @@ class DbManager extends Root {
   }
 
   /**
-   * Instantiate and Register the Identity from an identities DB Entry.
-   *
-   * If the layer.Identity already exists, then its presumed that whatever is in
-   * javascript cache is more up to date than whats in IndexedDB cache.
-   *
-   * @method _createIdentity
-   * @param {Object} identity
-   * @returns {layer.Identity}
-   */
-  _createIdentity(identity) {
-    if (!this.client.getIdentity(identity.id)) {
-      identity._fromDB = true;
-      const newidentity = this.client._createObject(identity);
-      newidentity.syncState = identity.sync_state;
-      return newidentity;
-    }
-  }
-
-  /**
    * Load all Sync Events from the database.
    *
    * @method loadSyncQueue
@@ -796,14 +675,10 @@ class DbManager extends Root {
       .filter(item => item.operation !== 'DELETE' && item.target && item.target.match(/conversations/))
       .map(item => item.target);
 
-    const identityIds = syncEvents
-      .filter(item => item.operation !== 'DELETE' && item.target && item.target.match(/identities/))
-      .map(item => item.target);
-
     // Load any Messages/Conversations that are targets of operations.
     // Call _createMessage or _createConversation on all targets found.
     let counter = 0;
-    const maxCounter = 3;
+    const maxCounter = 2;
     this.getObjects('messages', messageIds, (messages) => {
       messages.forEach(message => this._createMessage(message));
       counter++;
@@ -811,11 +686,6 @@ class DbManager extends Root {
     });
     this.getObjects('conversations', conversationIds, (conversations) => {
       conversations.forEach(conversation => this._createConversation(conversation));
-      counter++;
-      if (counter === maxCounter) this._loadSyncEventResults(syncEvents, callback);
-    });
-    this.getObjects('identities', identityIds, (identities) => {
-      identities.forEach(identity => this._createIdentity(identity));
       counter++;
       if (counter === maxCounter) this._loadSyncEventResults(syncEvents, callback);
     });
@@ -903,7 +773,7 @@ class DbManager extends Root {
    *
    * @method _loadByIndex
    * @protected
-   * @param {String} tableName - 'messages', 'conversations', 'identities'
+   * @param {String} tableName - 'messages', 'conversations'
    * @param {String} indexName - Name of the index to query on
    * @param {IDBKeyRange} [range=null] - Range to Query for
    * @param {Boolean} [isFromId=false] - If querying for results after a specified ID, then we want to skip the first result (which will be that ID)
@@ -1043,8 +913,6 @@ class DbManager extends Root {
               // Convert base64 to blob before sending it along...
               cursor.value.parts.forEach(part => this._blobifyPart(part));
               return callback(cursor.value);
-            case 'identities':
-              return callback(cursor.value);
             case 'conversations':
               if (cursor.value.last_message && !this.client.getMessage(cursor.value.last_message)) {
                 return this.getObject('messages', cursor.value.last_message, (message) => {
@@ -1089,6 +957,7 @@ class DbManager extends Root {
    */
   deleteTables(callback) {
     this.onOpen(() => {
+      if (!this.db) return callback();
       try {
         // Damned safari 9 throws errors on transactions across multiple tables.  So one at a time:
         let count = 0;
@@ -1133,11 +1002,6 @@ DbManager.prototype._permission_messages = false;
  * @type {boolean} Is reading/writing conversations allowed?
  */
 DbManager.prototype._permission_conversations = false;
-
-/**
- * @type {boolean} Is reading/writing identities allowed?
- */
-DbManager.prototype._permission_identities = false;
 
 /**
  * @type {boolean} Is reading/writing unsent server requests allowed?

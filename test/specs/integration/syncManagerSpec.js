@@ -2,7 +2,7 @@
 describe("SyncManager Integration Tests", function() {
     var socket, client, syncManager, request;
     var appId = "Fred's App";
-
+    var userId = "Frodo";
     beforeEach(function() {
         jasmine.clock().install();
         jasmine.Ajax.install();
@@ -13,22 +13,7 @@ describe("SyncManager Integration Tests", function() {
             isTrustedDevice: false
         });
         client.sessionToken = "sessionToken";
-        client.user = new layer.Identity({
-            clientId: client.appId,
-            userId: "Frodo",
-            id: "layer:///identities/" + "Frodo",
-            firstName: "first",
-            lastName: "last",
-            phoneNumber: "phone",
-            emailAddress: "email",
-            metadata: {},
-            publicKey: "public",
-            avatarUrl: "avatar",
-            displayName: "display",
-            syncState: layer.Constants.SYNC_STATE.SYNCED,
-            isFullIdentity: true,
-            sessionOwner: true
-        });
+        client.user = {userId: userId};
 
         client._clientAuthenticated();
         conversation = client._createObject(responses.conversation1).conversation;

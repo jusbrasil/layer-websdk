@@ -2,13 +2,11 @@
 
 describe("The DbManager Class", function() {
     var appId = "Fred's App";
-
+    var userId = "Frodo";
     var client,
         conversation,
         message,
         announcement,
-        identity,
-        basicIdentity,
         dbManager;
 
         var MAX_SAFE_INTEGER = 9007199254740991;
@@ -17,26 +15,12 @@ describe("The DbManager Class", function() {
         client = new layer.Client({
             appId: appId,
             url: "https://huh.com",
-            isTrustedDevice: true
+            isTrustedDevice: true,
+            isPersistenceEnabled: true
         });
         client.sessionToken = "sessionToken";
 
-        identity = new layer.Identity({
-          clientId: client.appId,
-          userId: "Frodo",
-          id: "layer:///identities/" + "Frodo",
-          firstName: "first",
-          lastName: "last",
-          phoneNumber: "phone",
-          emailAddress: "email",
-          metadata: {},
-          publicKey: "public",
-          avatarUrl: "avatar",
-          displayName: "display",
-          syncState: layer.Constants.SYNC_STATE.SYNCED,
-          isFullIdentity: true
-        });
-        client.user = identity;
+        client.user = {userId: userId};
         client._clientAuthenticated();
         client._clientReady();
         client.syncManager.queue = [];
@@ -44,12 +28,6 @@ describe("The DbManager Class", function() {
         message = conversation.lastMessage;
         announcement = client._createObject(responses.announcement);
 
-        basicIdentity = new layer.Identity({
-          clientId: client.appId,
-          userId: client.userId,
-          id: "layer:///identities/" + client.userId,
-          isFullIdentity: false
-        });
         dbManager = client.dbManager;
         dbManager.deleteTables(function() {
           done();
@@ -107,29 +85,6 @@ describe("The DbManager Class", function() {
         expect(dbManager.deleteObjects).toHaveBeenCalledWith('messages', [message]);
       });
 
-      it("Should listen for identities:add events", function() {
-        spyOn(dbManager, "writeIdentities");
-        client.trigger('identities:add', { identities: [identity] });
-        expect(dbManager.writeIdentities).toHaveBeenCalledWith([identity], false);
-      });
-
-      it("Should listen for identities:change events", function() {
-        spyOn(dbManager, "writeIdentities");
-        client.trigger('identities:change', {
-          target: identity,
-          oldValue: 1,
-          newValue: 2,
-          property: 'displayName'
-        });
-        expect(dbManager.writeIdentities).toHaveBeenCalledWith([identity], true);
-      });
-
-      it("Should listen for identities:unfollow events", function() {
-        spyOn(dbManager, "deleteObjects");
-        client.trigger('identities:unfollow', { target: identity });
-        expect(dbManager.deleteObjects).toHaveBeenCalledWith('identities', [identity]);
-      });
-
       it("Should listen for sync:add events", function() {
         var syncEvent = new layer.XHRSyncEvent({});
         spyOn(dbManager, "writeSyncEvents");
@@ -172,13 +127,11 @@ describe("The DbManager Class", function() {
           tables: {
             conversations: true,
             messages: true,
-            identities: false,
             syncQueue: true
           }
         });
         expect(dbManager._permission_conversations).toBe(true);
         expect(dbManager._permission_messages).toBe(true);
-        expect(dbManager._permission_identities).toBe(false);
         expect(dbManager._permission_syncQueue).toBe(true);
       });
 
@@ -188,13 +141,11 @@ describe("The DbManager Class", function() {
           tables: {
             conversations: true,
             messages: false,
-            identities: false,
             syncQueue: true
           }
         });
         expect(dbManager._permission_conversations).toBe(true);
         expect(dbManager._permission_messages).toBe(false);
-        expect(dbManager._permission_identities).toBe(false);
         expect(dbManager._permission_syncQueue).toBe(false);
 
       });
@@ -207,7 +158,6 @@ describe("The DbManager Class", function() {
           tables: {
             conversations: false,
             messages: false,
-            identities: false,
             syncQueue: false
           }
         });
@@ -283,7 +233,7 @@ describe("The DbManager Class", function() {
         expect(dbManager._getConversationData([conversation])).toEqual([{
           id: conversation.id,
           url: conversation.url,
-          participants: client.dbManager._getIdentityData(conversation.participants, true),
+          participants: conversation.participants,
           distinct: conversation.distinct,
           created_at: conversation.createdAt.toISOString(),
           metadata: conversation.metadata,
@@ -344,6 +294,8 @@ describe("The DbManager Class", function() {
       it("Should generate a proper Message object", function() {
         message = conversation.createMessage("hey ho");
         message.receivedAt = new Date();
+        message.sender.displayName = "display name";
+        message.sender.avatarUrl = "http://doh";
         var isDone = false;
         dbManager._getMessageData([message], function(result) {
           expect(result).toEqual([{
@@ -356,11 +308,10 @@ describe("The DbManager Class", function() {
             conversation: message.conversationId,
             is_unread: false,
             sender: {
-              id: "layer:///identities/Frodo",
-              url: "https://huh.com/identities/Frodo",
               user_id: message.sender.userId || '',
               display_name: message.sender.displayName,
-              avatar_url: message.sender.avatarUrl
+              avatar_url: message.sender.avatarUrl,
+              name: message.sender.name
             },
             sync_state: message.syncState,
             parts: [{
@@ -381,16 +332,12 @@ describe("The DbManager Class", function() {
       it("Should generate a proper Announcement object", function() {
         message = client._createObject(JSON.parse(JSON.stringify(responses.announcement)));
         message.receivedAt = new Date();
-        message.sender = new layer.Identity({
-          fromServer: {
-            id: null,
-            user_id: null,
-            url: null,
-            display_name: 'Hey ho',
-            avatar_url: null,
-          },
-          client: client
-        });
+        message.sender = {
+          name: "Hey Ho",
+          userId: '',
+          displayName: '',
+          avatarUrl: ''
+        };
         var isDone = false;
 
         dbManager._getMessageData([message], function(result) {
@@ -404,10 +351,9 @@ describe("The DbManager Class", function() {
             is_unread: true,
             conversation: 'announcement',
             sender: {
+              name: 'Hey Ho',
               user_id: '',
-              id: '',
-              url: '',
-              display_name: 'Hey ho',
+              display_name: '',
               avatar_url: ''
             },
             sync_state: message.syncState,
@@ -446,11 +392,10 @@ describe("The DbManager Class", function() {
             conversation: message.conversationId,
             is_unread: false,
             sender: {
-              id: "layer:///identities/Frodo",
-              url: "https://huh.com/identities/Frodo",
               user_id: message.sender.userId || '',
               display_name: message.sender.displayName,
-              avatar_url: message.sender.avatarUrl
+              avatar_url: message.sender.avatarUrl,
+              name: message.sender.name,
             },
             sync_state: message.syncState,
             parts: [{
@@ -499,11 +444,10 @@ describe("The DbManager Class", function() {
             conversation: message.conversationId,
             is_unread: false,
             sender: {
-              id: "layer:///identities/Frodo",
-              url: "https://huh.com/identities/Frodo",
               user_id: message.sender.userId || '',
               display_name: message.sender.displayName,
-              avatar_url: message.sender.avatarUrl
+              avatar_url: message.sender.avatarUrl,
+              name: message.sender.name,
             },
             sync_state: message.syncState,
             parts: [{
@@ -521,9 +465,14 @@ describe("The DbManager Class", function() {
 
       it("Should generate a proper Announcement object", function() {
         var data = JSON.parse(JSON.stringify(responses.announcement));
-        delete client._identitiesHash[data.sender.id];
         message = client._createObject(data);
         message.receivedAt = new Date();
+        message.sender = {
+          userId: 'admin',
+          name: "Lord Master the Admin",
+          displayName: "",
+          avatarUrl: ""
+        };
         var isDone = false;
 
         dbManager._getMessageData([message], function(result) {
@@ -538,9 +487,8 @@ describe("The DbManager Class", function() {
             is_unread: message.isUnread,
             sender: {
               user_id: 'admin',
-              id: 'layer:///identities/admin',
-              url: client.url + '/identities/admin',
-              display_name: 'Lord Master the Admin',
+              name: 'Lord Master the Admin',
+              display_name: '',
               avatar_url: ''
             },
             sync_state: message.syncState,
@@ -609,75 +557,6 @@ describe("The DbManager Class", function() {
       });
     });
 
-
-    describe("The _getIdentityData() method", function() {
-      it("Should ignore anything that just came out of the database and clear _fromDB", function() {
-        identity._fromDB = true;
-        expect(dbManager._getIdentityData([identity])).toEqual([]);
-        expect(identity._fromDB).toBe(false);
-      });
-
-      it("Should ignore Basic Identities", function() {
-        expect(dbManager._getIdentityData([identity, basicIdentity])).toEqual(dbManager._getIdentityData([identity]));
-      });
-
-      it("Should write Basic Identities", function() {
-        expect(dbManager._getIdentityData([identity, basicIdentity], true)).toEqual([dbManager._getIdentityData([identity], true)[0], {
-          id: basicIdentity.id,
-          url: client.url + "/identities/" + basicIdentity.userId,
-          user_id: basicIdentity.userId,
-          display_name: basicIdentity.displayName,
-          avatar_url: basicIdentity.avatarUrl
-        }]);
-      });
-
-      it("Should ignore Loading Identities", function() {
-        identity.syncState = layer.Constants.SYNC_STATE.LOADING;
-        expect(dbManager._getIdentityData([identity, basicIdentity])).toEqual([]);
-      });
-
-
-      it("Should generate a proper Identity object", function() {
-        expect(dbManager._getIdentityData([identity])).toEqual([{
-          id: identity.id,
-          url: identity.url,
-          user_id: identity.userId,
-          first_name: identity.firstName,
-          last_name: identity.lastName,
-          display_name: identity.displayName,
-          email_address: identity.emailAddress,
-          avatar_url: identity.avatarUrl,
-          metadata: identity.metadata,
-          public_key: identity.publicKey,
-          phone_number: identity.phoneNumber,
-          sync_state: identity.syncState,
-          type: layer.Identity.UserType
-        }]);
-      });
-    });
-
-    describe("The writeIdentities() method", function() {
-      it("Should forward isUpdate true to writeIdentities", function() {
-        spyOn(dbManager, "_writeObjects");
-        spyOn(dbManager, "_getIdentityData").and.returnValue([{id: 'fred'}]);
-        dbManager.writeIdentities([identity], false);
-        expect(dbManager._writeObjects).toHaveBeenCalledWith('identities', jasmine.any(Object), false, undefined);
-      });
-
-      it("Should forward isUpdate true to writeIdentities", function() {
-        spyOn(dbManager, "_writeObjects");
-        spyOn(dbManager, "_getIdentityData").and.returnValue([{id: 'fred'}]);
-        dbManager.writeIdentities([message], true);
-        expect(dbManager._writeObjects).toHaveBeenCalledWith('identities', jasmine.any(Object), true, undefined);
-      });
-
-      it("Should feed data from _getIdentityData to _writeObjects", function() {
-        spyOn(dbManager, "_writeObjects");
-        spyOn(dbManager, "_getIdentityData").and.returnValue([{id: 'fred'}]);
-        dbManager.writeIdentities([message], false);
-        expect(dbManager._writeObjects).toHaveBeenCalledWith('identities', [{id: 'fred'}], jasmine.any(Boolean), undefined);
-      });
-    });
 
     describe("The _getSyncEventData() method", function() {
       var syncEvent;
@@ -1102,50 +981,6 @@ describe("The DbManager Class", function() {
       });
     });
 
-    describe("The loadIdentities() method", function() {
-      it("Should call _loadAll", function() {
-        spyOn(dbManager, "_loadAll");
-        dbManager.loadIdentities(function() {});
-        expect(dbManager._loadAll).toHaveBeenCalledWith('identities', jasmine.any(Function));
-      });
-
-      it("Should call _loadIdentitiesResult", function() {
-        spyOn(dbManager, "_loadIdentitiesResult");
-        spyOn(dbManager, "_loadAll").and.callFake(function(table, callback) {
-          callback([identity]);
-        });
-        var spy = jasmine.createSpy('spy');
-        dbManager.loadIdentities(spy);
-        expect(dbManager._loadIdentitiesResult).toHaveBeenCalledWith([identity], spy);
-      });
-    });
-
-    describe("The _loadIdentitiesResult() method", function() {
-      it("Calls _createIdentity on each identity", function() {
-        spyOn(dbManager, "_createIdentity");
-        basicIdentity.isFullIdentity = true;
-
-        // Run
-        dbManager._loadIdentitiesResult(dbManager._getIdentityData([identity, basicIdentity]));
-
-        // Posttest
-        expect(dbManager._createIdentity).toHaveBeenCalledWith(dbManager._getIdentityData([identity])[0]);
-        expect(dbManager._createIdentity).toHaveBeenCalledWith(dbManager._getIdentityData([basicIdentity])[0]);
-      });
-
-      it("Only returns new identities", function() {
-        client._identitiesHash = {}
-        client._identitiesHash[identity.id] = identity;
-        basicIdentity.isFullIdentity = true;
-        var spy = jasmine.createSpy('spy');
-
-        // Run
-        dbManager._loadIdentitiesResult(dbManager._getIdentityData([identity, basicIdentity]), spy);
-
-        // Posttest
-        expect(spy).toHaveBeenCalledWith([identity, jasmine.objectContaining({id: basicIdentity.id})]);
-      });
-    });
 
     describe("The _createConversation() method", function() {
       it("Should return a Conversation", function() {
@@ -1205,22 +1040,6 @@ describe("The DbManager Class", function() {
       });
     });
 
-    describe("The _createIdentity() method", function() {
-      it("Should return an Identity", function() {
-        delete client._identitiesHash[identity.id];
-        expect(dbManager._createIdentity(dbManager._getIdentityData([identity])[0])).toEqual(jasmine.any(layer.Identity));
-      });
-
-      it("Should flag Identity with _fromDB property", function() {
-        delete client._identitiesHash[identity.id];
-        expect(dbManager._createIdentity(dbManager._getIdentityData([identity])[0])._fromDB).toBe(true);
-      });
-
-      it("Should do nothing if the Identity already is instantiated", function() {
-        client._identitiesHash[identity.id] = identity;
-        expect(dbManager._createIdentity(dbManager._getIdentityData([identity])[0])).toBe(undefined);
-      });
-    });
 
     describe("The loadSyncQueue() method", function() {
       it("Should call _loadAll", function() {
@@ -1252,9 +1071,6 @@ describe("The DbManager Class", function() {
            }),
            new layer.XHRSyncEvent({
              target: message.id
-           }),
-           new layer.XHRSyncEvent({
-             target: identity.id
            })
         ]);
       });
@@ -1323,26 +1139,6 @@ describe("The DbManager Class", function() {
         expect(dbManager._createConversation).not.toHaveBeenCalledWith(rawConversation);
       });
 
-      it("Should call getObjects for all identityIds", function() {
-        spyOn(dbManager, "getObjects");
-        dbManager._loadSyncEventRelatedData(rawSyncEvents, function() {});
-        expect(dbManager.getObjects).toHaveBeenCalledWith('identities', [identity.id], jasmine.any(Function));
-      });
-
-      it("Should call _createIdentity for all identityIds", function() {
-        var rawIdentity = dbManager._getIdentityData([identity])[0];
-        spyOn(dbManager, "getObjects").and.callFake(function(tableName, ids, callback) {
-          if (tableName === 'identities') {
-            callback([rawIdentity]);
-          } else {
-            callback([]);
-          }
-        });
-        spyOn(dbManager, "_createIdentity");
-        dbManager._loadSyncEventRelatedData(rawSyncEvents, function() {});
-        expect(dbManager._createIdentity).toHaveBeenCalledWith(rawIdentity);
-      });
-
       it("Should call _loadSyncEventResults", function() {
         spyOn(dbManager, "getObjects").and.callFake(function(tableName, ids, callback) {
           callback([]);
@@ -1351,7 +1147,7 @@ describe("The DbManager Class", function() {
         var spy = jasmine.createSpy('callback');
         dbManager._loadSyncEventRelatedData(rawSyncEvents, spy);
         expect(dbManager._loadSyncEventResults).toHaveBeenCalledWith(rawSyncEvents, spy);
-        expect(dbManager.getObjects.calls.count()).toEqual(3);
+        expect(dbManager.getObjects.calls.count()).toEqual(2);
       });
     });
 
@@ -1530,7 +1326,7 @@ describe("The DbManager Class", function() {
         });
       });
 
-      it("Should skip first result if isFromId", function() {
+      it("Should skip first result if isFromId", function(done) {
         var expectedResult;
         dbManager._getMessageData([m2, m1, message], function(result) { expectedResult = result; });
 

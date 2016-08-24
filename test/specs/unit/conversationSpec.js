@@ -1,14 +1,8 @@
 /*eslint-disable */
 describe("The Conversation Class", function() {
     var appId = "Fred's App";
-
+    var userId = "Frodo";
     var conversation,
-        userIdentity1,
-        userIdentity2,
-        userIdentity3,
-        userIdentity4,
-        userIdentity5,
-        userIdentity6,
         client,
         requests;
 
@@ -22,59 +16,7 @@ describe("The Conversation Class", function() {
         });
         client.sessionToken = "sessionToken";
 
-        client.user = new layer.Identity({
-          clientId: client.appId,
-          userId: "Frodo",
-          id: "layer:///identities/" + "Frodo",
-          firstName: "first",
-          lastName: "last",
-          phoneNumber: "phone",
-          emailAddress: "email",
-          metadata: {},
-          publicKey: "public",
-          avatarUrl: "avatar",
-          displayName: "display",
-          syncState: layer.Constants.SYNC_STATE.SYNCED,
-          isFullIdentity: true,
-          sessionOwner: true
-        });
-        userIdentity1 = new layer.Identity({
-            clientId: client.appId,
-            id: "layer:///identities/1",
-            displayName: "1",
-            userId: "1"
-        });
-        userIdentity2 = new layer.Identity({
-            clientId: client.appId,
-            id: "layer:///identities/2",
-            displayName: "2",
-            userId: "2"
-        });
-        userIdentity3 = new layer.Identity({
-            clientId: client.appId,
-            id: "layer:///identities/3",
-            displayName: "3",
-            userId: "3"
-        });
-        userIdentity4 = new layer.Identity({
-            clientId: client.appId,
-            id: "layer:///identities/4",
-            displayName: "4",
-            userId: "4"
-        });
-        userIdentity5 = new layer.Identity({
-            clientId: client.appId,
-            id: "layer:///identities/5",
-            displayName: "5",
-            userId: "5"
-        });
-        userIdentity6 = new layer.Identity({
-            clientId: client.appId,
-            id: "layer:///identities/6",
-            displayName: "6",
-            userId: "6"
-        });
-
+        client.user = {userId: userId};
         client._clientAuthenticated();
         getObjectsResult = [];
         spyOn(client.dbManager, "getObjects").and.callFake(function(tableName, ids, callback) {
@@ -104,7 +46,7 @@ describe("The Conversation Class", function() {
 
     describe("The constructor() method", function() {
         it("Shoulds setup an empty participants array", function() {
-            expect(new layer.Conversation({client: client}).participants).toEqual([client.user]);
+            expect(new layer.Conversation({client: client}).participants).toEqual([userId]);
         });
 
         it("Should setup empty metadata", function() {
@@ -128,8 +70,8 @@ describe("The Conversation Class", function() {
         });
 
         it("Should copy in any input participants", function() {
-            expect(new layer.Conversation({client: client, participants: [userIdentity1, userIdentity2.userId]}).participants)
-                .toEqual([userIdentity1, userIdentity2, client.user]);
+            expect(new layer.Conversation({client: client, participants: ['a', 'b']}).participants)
+                .toEqual(['a', 'b', userId]);
         });
 
         it("Should copy in any metadata", function() {
@@ -285,7 +227,7 @@ describe("The Conversation Class", function() {
       var conversation;
       beforeEach(function() {
         conversation = new layer.Conversation({
-            participants: [userIdentity1],
+            participants: ['a'],
             client: client
         });
       });
@@ -432,7 +374,7 @@ describe("The Conversation Class", function() {
 
         it("Should fail with 1 participant if it is the current user", function() {
             // Setup
-            conversation.participants = [client.user];
+            conversation.participants = [userId];
             conversation.syncState = layer.Constants.SYNC_STATE.NEW;
 
             // Run
@@ -455,7 +397,7 @@ describe("The Conversation Class", function() {
 
         it("Should succeed with 1 participant if it is NOT the current user", function() {
             // Setup
-            conversation.participants = [userIdentity1];
+            conversation.participants = ['a'];
             conversation.syncState = layer.Constants.SYNC_STATE.NEW;
             spyOn(client, "sendSocketRequest");
 
@@ -522,14 +464,14 @@ describe("The Conversation Class", function() {
     describe("The _getSendData() method", function() {
       it("Should return the current state of the data in a create format", function() {
         var conversation = new layer.Conversation({
-          participants: [userIdentity1, client.user],
+          participants: ['a', userId],
           client: client,
           metadata: {hey: "ho"}
         });
         expect(conversation._getSendData()).toEqual({
           method: 'Conversation.create',
           data: {
-            participants: [userIdentity1.id, client.user.id],
+            participants: ['a', userId],
             distinct: true,
             metadata: {hey: "ho"},
             id: conversation.id
@@ -539,14 +481,14 @@ describe("The Conversation Class", function() {
 
       it("Should return null if no metadata", function() {
         var conversation = new layer.Conversation({
-          participants: [userIdentity1, client.user],
+          participants: ['a', userId],
           client: client
         });
         expect(conversation._getSendData()).toEqual({
           method: 'Conversation.create',
           data: {
             id: conversation.id,
-            participants: [userIdentity1.id, client.user.id],
+            participants: ['a', userId],
             distinct: true,
             metadata: null
           }
@@ -699,13 +641,12 @@ describe("The Conversation Class", function() {
             // Run
             conversation._createSuccess({
                 id: "layer:///conversations/fred",
-                participants: [userIdentity1],
+                participants: ['a'],
                 distinct: true,
                 last_message: {
                     id: "layer:///messages/joe",
                     sender: {
-                        user_id: "joe",
-                        id: "layer:///identities/joe"
+                        user_id: "joe"
                     },
                     parts: [{mime_type: "text/plain", body: "hey"}],
                     conversation: {
@@ -814,7 +755,7 @@ describe("The Conversation Class", function() {
 
         it("Should set isCurrentParticipant to true", function() {
             // Setup
-            c.participants = [userIdentity1, userIdentity2];
+            c.participants = ['a', 'b'];
 
             // Run
             conversation._populateFromServer(c);
@@ -825,7 +766,7 @@ describe("The Conversation Class", function() {
 
         it("Should set isCurrentParticipant to true", function() {
             // Setup
-            c.participants = [userIdentity1, client.user];
+            c.participants = ['a', userId];
 
             // Run
             conversation._populateFromServer(c);
@@ -839,38 +780,38 @@ describe("The Conversation Class", function() {
     describe("The addParticipants() method", function() {
         it("Should call _patchParticipants with only new participants", function() {
             // Setup
-            conversation.participants = [userIdentity1, userIdentity2, userIdentity3];
+            conversation.participants = ['a', 'b', 'c'];
             spyOn(conversation, "_patchParticipants");
 
             // Run
-            conversation.addParticipants([userIdentity1, client.user, userIdentity4]);
+            conversation.addParticipants(['a', userId, 'd']);
 
             // Posttest
             expect(conversation._patchParticipants).toHaveBeenCalledWith({
-                add: [client.user, userIdentity4], remove: []
+                add: [userId, 'd'], remove: []
             });
         });
 
         it("Should immediately modify the participants with userIds", function() {
             // Setup
-            conversation.participants = [userIdentity1, userIdentity2, userIdentity3];
+            conversation.participants = ['a', 'b', 'c'];
 
             // Run
-            conversation.addParticipants([userIdentity1.userId, userIdentity1.userId, client.user.userId, userIdentity4.userId]);
+            conversation.addParticipants(['a', 'b', userId, 'd']);
 
             // Posttest
-            expect(conversation.participants).toEqual([userIdentity1, userIdentity2, userIdentity3, client.user, userIdentity4]);
+            expect(conversation.participants).toEqual(['a', 'b', 'c', userId, 'd']);
         });
 
         it("Should immediately modify the participants with identities", function() {
             // Setup
-            conversation.participants = [userIdentity1, userIdentity2, userIdentity3];
+            conversation.participants = ['a', 'b', 'c'];
 
             // Run
-            conversation.addParticipants([userIdentity1, client.user, userIdentity4]);
+            conversation.addParticipants(['a', userId, 'd']);
 
             // Posttest
-            expect(conversation.participants).toEqual([userIdentity1, userIdentity2, userIdentity3, client.user, userIdentity4]);
+            expect(conversation.participants).toEqual(['a', 'b', 'c', userId, 'd']);
         });
     });
 
@@ -878,58 +819,58 @@ describe("The Conversation Class", function() {
 
         it("Should call _patchParticipants with existing removed participants", function() {
             // Setup
-            conversation.participants = [userIdentity1, userIdentity2, userIdentity3];
+            conversation.participants = ['a', 'b', 'c'];
             spyOn(conversation, "_patchParticipants");
 
             // Run
-            conversation.removeParticipants([userIdentity2, userIdentity3, userIdentity4]);
+            conversation.removeParticipants(['b', 'c', 'd']);
 
             // Posttest
             expect(conversation._patchParticipants).toHaveBeenCalledWith({
-                add: [], remove: [userIdentity2, userIdentity3]
+                add: [], remove: ['b', 'c']
             });
         });
 
         it("Should immediately modify the participants", function() {
             // Setup
-            conversation.participants = [userIdentity1, userIdentity2, userIdentity3];
+            conversation.participants = ['a', 'b', 'c'];
 
             // Run
-            conversation.removeParticipants([userIdentity2, userIdentity3, userIdentity4]);
+            conversation.removeParticipants(['b', 'c', 'd']);
 
             // Posttest
-            expect(conversation.participants).toEqual([userIdentity1]);
+            expect(conversation.participants).toEqual(['a']);
         });
 
         it("Should immediately modify the participants with Identities", function() {
             // Setup
-            conversation.participants = [userIdentity1, userIdentity2, userIdentity3];
+            conversation.participants = ['a', 'b', 'c'];
 
             // Run
-            conversation.removeParticipants([userIdentity2, userIdentity3, userIdentity4]);
+            conversation.removeParticipants(['b', 'c', 'd']);
 
             // Posttest
-            expect(conversation.participants).toEqual([userIdentity1]);
+            expect(conversation.participants).toEqual(['a']);
         });
 
 
         it("Should throw error if removing ALL participants", function() {
             // Setup
-            conversation.participants = [userIdentity1, userIdentity2, userIdentity3];
+            conversation.participants = ['a', 'b', 'c'];
 
             // Run
             expect(function() {
-                conversation.removeParticipants([userIdentity1, userIdentity2, userIdentity3]);
+                conversation.removeParticipants(['a', 'b', 'c']);
             }).toThrowError(layer.LayerError.dictionary.moreParticipantsRequired);
             expect(layer.LayerError.dictionary.moreParticipantsRequired).toEqual(jasmine.any(String));
         });
 
         it("Should return this", function() {
             // Setup
-            conversation.participants = [userIdentity1, userIdentity2, userIdentity3];
+            conversation.participants = ['a', 'b', 'c'];
 
             // Run
-            expect(conversation.removeParticipants([userIdentity1])).toBe(conversation);
+            expect(conversation.removeParticipants(['a'])).toBe(conversation);
             expect(conversation.removeParticipants([])).toBe(conversation);
             expect(conversation.removeParticipants(["not present"])).toBe(conversation);
         });
@@ -938,7 +879,7 @@ describe("The Conversation Class", function() {
     describe("The replaceParticipants() method", function() {
         it("Should throw error if removing ALL participants", function() {
             // Setup
-            conversation.participants = [userIdentity1, userIdentity2, userIdentity3];
+            conversation.participants = ['a', 'b', 'c'];
 
             // Run
             expect(function() {
@@ -949,38 +890,38 @@ describe("The Conversation Class", function() {
 
         it("Should call _patchParticipants", function() {
             // Setup
-            conversation.participants = [userIdentity1, userIdentity2, userIdentity3];
+            conversation.participants = ['a', 'b', 'c'];
             spyOn(conversation, "_patchParticipants");
 
             // Run
-            conversation.replaceParticipants([userIdentity2.userId, userIdentity3.userId, userIdentity4.userId]);
+            conversation.replaceParticipants(['b', 'c', 'd']);
 
             // Posttest
             expect(conversation._patchParticipants).toHaveBeenCalledWith({
-                add: [userIdentity4], remove: [userIdentity1]
+                add: ['d'], remove: ['a']
             });
         });
 
         it("Should immediately modify the participants", function() {
             // Setup
-            conversation.participants = [userIdentity1, userIdentity2, userIdentity3];
+            conversation.participants = ['a', 'b', 'c'];
 
             // Run
-            conversation.replaceParticipants([userIdentity2.userId, userIdentity3.userId, userIdentity4.userId]);
+            conversation.replaceParticipants(['b', 'c', 'd']);
 
             // Posttest
-            expect(conversation.participants).toEqual([userIdentity2, userIdentity3, userIdentity4]);
+            expect(conversation.participants).toEqual(['b', 'c', 'd']);
         });
 
         it("Should immediately modify the participants by Identity", function() {
             // Setup
-            conversation.participants = [userIdentity1, userIdentity2, userIdentity3];
+            conversation.participants = ['a', 'b', 'c'];
 
             // Run
-            conversation.replaceParticipants([userIdentity2, userIdentity3, userIdentity4]);
+            conversation.replaceParticipants(['b', 'c', 'd']);
 
             // Posttest
-            expect(conversation.participants).toEqual([userIdentity2, userIdentity3, userIdentity4]);
+            expect(conversation.participants).toEqual(['b', 'c', 'd']);
         });
     });
 
@@ -991,7 +932,7 @@ describe("The Conversation Class", function() {
 
             // Run
             conversation._patchParticipants({
-                add: [userIdentity1], remove: [userIdentity2, userIdentity3]
+                add: ['a'], remove: ['b', userId]
             });
 
             // Posttest
@@ -1002,9 +943,9 @@ describe("The Conversation Class", function() {
                     'content-type': 'application/vnd.layer-patch+json',
                 },
                 data: JSON.stringify([
-                    {operation: "remove", property: "participants", id: userIdentity2.id},
-                    {operation: "remove", property: "participants", id: userIdentity3.id},
-                    {operation: "add", property: "participants", id: userIdentity1.id}
+                    {operation: "remove", property: "participants", value: 'b'},
+                    {operation: "remove", property: "participants", value: userId},
+                    {operation: "add", property: "participants", value: 'a'}
                 ])
             }, jasmine.any(Function));
         });
@@ -1029,7 +970,7 @@ describe("The Conversation Class", function() {
             conversation.isCurrentParticipant = false;
 
             conversation._patchParticipants({
-                add: [userIdentity1, userIdentity2, client.user], remove: [userIdentity3, userIdentity4]
+                add: ['a', 'b', userId], remove: ['c', 'd']
             });
 
             expect(conversation.isCurrentParticipant).toBe(true);
@@ -1040,7 +981,7 @@ describe("The Conversation Class", function() {
             conversation.isCurrentParticipant = true;
 
             conversation._patchParticipants({
-                add: [userIdentity1, userIdentity2], remove: [userIdentity3, userIdentity4, client.user]
+                add: ['a', 'b'], remove: ['c', 'd', userId]
             });
 
             expect(conversation.isCurrentParticipant).toBe(false);
@@ -1054,7 +995,7 @@ describe("The Conversation Class", function() {
 
           // Run
           conversation._patchParticipants({
-              add: [userIdentity1, userIdentity2], remove: [userIdentity3, userIdentity4, client.user]
+              add: ['a', 'b'], remove: ['c', 'd', userId]
           });
 
           // Posttest
@@ -1065,35 +1006,35 @@ describe("The Conversation Class", function() {
     describe("The _applyParticipantChange() method", function() {
         it("Should add/remove participants", function() {
             // Setup
-            conversation.participants = [userIdentity1, userIdentity2, client.user];
+            conversation.participants = ['a', 'b', userId];
 
             // Run
             conversation._applyParticipantChange({
-                add: [userIdentity1, userIdentity3, userIdentity4],
-                remove: [userIdentity2, userIdentity5, userIdentity6]
+                add: ['a', 'c', 'd'],
+                remove: ['b', 'e', 'f']
             });
 
             // Posttest
-            expect(conversation.participants).toEqual(jasmine.arrayContaining([userIdentity1, client.user, userIdentity3, userIdentity4]));
+            expect(conversation.participants).toEqual(jasmine.arrayContaining(['a', userId, 'c', 'd']));
         });
 
         it("Should call __updateParticipants", function() {
             // Setup
-            conversation.participants = [userIdentity1, userIdentity2, client.user];
+            conversation.participants = ['a', 'b', userId];
             spyOn(conversation, "__updateParticipants");
 
             // Run
             conversation._applyParticipantChange({
-                add: [userIdentity1, userIdentity3, userIdentity4],
-                remove: [userIdentity2, userIdentity5, userIdentity6]
+                add: ['a', 'c', 'd'],
+                remove: ['b', 'e', 'f']
             });
 
             // Posttest
-            expect(conversation.__updateParticipants).toHaveBeenCalledWith([userIdentity1, client.user, userIdentity3, userIdentity4], [userIdentity1, userIdentity2, client.user]);
+            expect(conversation.__updateParticipants).toHaveBeenCalledWith(['a', userId, 'c', 'd'], ['a', 'b', userId]);
         });
 
         it("Should survive an integration test", function() {
-            conversation.participants = [userIdentity1, userIdentity2];
+            conversation.participants = ['a', 'b'];
             client.socketChangeManager._handlePatch({
                 operation: "patch",
                 object: {
@@ -1101,16 +1042,15 @@ describe("The Conversation Class", function() {
                     type: "Conversation"
                 },
                 data: [
-                    {operation: "add", property: "participants", id: "layer:///identities/jane", value: {id: "layer:///identities/jane", user_id: "jane", url: "http://doh.com/identities/jane", display_name: "Jane"}},
-                    {operation: "add", property: "participants", id: "layer:///identities/3", value: {id: "layer:///identities/d", user_id: "d", url: "http://doh.com/identities/d", display_name: "The new 3"}},
-                    {operation: "add", property: "participants", id: "layer:///identities/4"},
-                    {operation: "remove", property: "participants", id: "layer:///identities/2"}
+                    {operation: "add", property: "participants", value: "a"},
+                    {operation: "add", property: "participants", value: "c"},
+                    {operation: "add", property: "participants", value: "d"},
+                    {operation: "remove", property: "participants", value: "b"}
                 ]
             });
 
             // Posttest
-            expect(conversation.participants[1]).toBe(client.getIdentity("jane"));
-            expect(conversation.participants).toEqual([userIdentity1, client.getIdentity("jane"), userIdentity3, userIdentity4]);
+            expect(conversation.participants).toEqual(['a', 'c', 'd']);
             //expect(client.getIdentity("3").displayName).toEqual("The new 3"); this is not expected to update at this time.
         });
     });
@@ -1367,8 +1307,8 @@ describe("The Conversation Class", function() {
 
         it("Should call __updateParticipants", function() {
             spyOn(conversation, "__updateParticipants");
-            conversation._handlePatchEvent([userIdentity1.toObject(), userIdentity2.toObject(), client.user.toObject()], [userIdentity3, userIdentity4, client.user], ["participants"]);
-            expect(conversation.__updateParticipants).toHaveBeenCalledWith([userIdentity1, userIdentity2, client.user], [userIdentity3, userIdentity4, client.user]);
+            conversation._handlePatchEvent(['a', 'b', userId], ['c', 'd', userId], ["participants"]);
+            expect(conversation.__updateParticipants).toHaveBeenCalledWith(['a', 'b', userId], ['c', 'd', userId]);
         });
     });
 
@@ -1820,22 +1760,6 @@ describe("The Conversation Class", function() {
         it("Should return cached value", function() {
             conversation._toObject = "fred";
             expect(conversation.toObject()).toEqual("fred");
-        });
-
-        it("Should call toObject() on all participants", function() {
-           var participants = conversation.toObject().participants;
-           expect(participants.length > 0).toBe(true);
-           participants.forEach(function(participant) {
-              expect(participant.userId).toEqual(jasmine.any(String));
-              expect(participant.url).toEqual(jasmine.any(String));
-              expect(participant).not.toEqual(jasmine.any(layer.Identity));
-           });
-           expect(conversation.participants[0].toObject()).toBe(participants[0]);
-        });
-
-        it("Should return a clone of participants", function() {
-            expect(conversation.toObject().participants).toEqual(conversation.participants.map(function(participant) { return participant.toObject();}));
-            expect(conversation.toObject().participants).not.toBe(conversation.participants);
         });
 
         it("Should return a clone of metadata", function() {

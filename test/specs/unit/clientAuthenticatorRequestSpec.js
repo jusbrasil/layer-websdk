@@ -22,22 +22,7 @@ describe("The Client Authenticator Requests", function() {
             reset: true,
             url: "https://duh.com"
         });
-        client.user = new layer.Identity({
-          clientId: client.appId,
-          userId: userId,
-          id: "layer:///identities/" + userId,
-          firstName: "first",
-          lastName: "last",
-          phoneNumber: "phone",
-          emailAddress: "email",
-          metadata: {},
-          publicKey: "public",
-          avatarUrl: "avatar",
-          displayName: "display",
-          syncState: layer.Constants.SYNC_STATE.SYNCED,
-          isFullIdentity: true,
-          sessionOwner: true
-        });
+        client.user = {userId: userId};
 
         client._initComponents();
         client._clientAuthenticated();
@@ -450,7 +435,7 @@ describe("The Client Authenticator Requests", function() {
             expect(headers).toEqual({
                 "hey-ho": "Doh",
                 "content-type": "application/json",
-                accept: "application/vnd.layer+json; version=2.0"
+                accept: "application/vnd.layer+json; version=1.0"
             });
         });
 
@@ -465,7 +450,7 @@ describe("The Client Authenticator Requests", function() {
             expect(headers).toEqual({
                 "hey-ho": "Doh",
                 "content-type": "application/json",
-                accept: "application/vnd.layer+json; version=2.0"
+                accept: "application/vnd.layer+json; version=1.0"
             });
         });
 
@@ -479,7 +464,7 @@ describe("The Client Authenticator Requests", function() {
             // Posttest
             expect(headers).toEqual({
                 "content-type": "text/mountain",
-                accept: "application/vnd.layer+json; version=2.0"
+                accept: "application/vnd.layer+json; version=1.0"
             });
         });
     });

@@ -2,6 +2,7 @@
 describe("The Websocket Socket Manager Class", function() {
     var socket, client, websocketManager;
     var appId = "Fred's App";
+    var userId = "Frodo";
     var nativeWebsocket;
 
     beforeAll(function() {
@@ -29,24 +30,7 @@ describe("The Websocket Socket Manager Class", function() {
             url: "https://huh.com"
         });
         client.sessionToken = "sessionToken";
-        client.userId = "Frodo";
-        client.user = new layer.Identity({
-            clientId: client.appId,
-            userId: client.userId,
-            id: "layer:///identities/" + client.userId,
-            firstName: "first",
-            lastName: "last",
-            phoneNumber: "phone",
-            emailAddress: "email",
-            metadata: {},
-            publicKey: "public",
-            avatarUrl: "avatar",
-            displayName: "display",
-            syncState: layer.Constants.SYNC_STATE.SYNCED,
-            isFullIdentity: true,
-            sessionOwner: true
-        });
-
+        client.user = {userId: userId};
 
         client._clientAuthenticated();
         getObjectsResult = [];

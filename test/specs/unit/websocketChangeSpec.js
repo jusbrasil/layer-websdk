@@ -2,6 +2,7 @@
 describe("The Websocket Change Manager Class", function() {
     var client, changeManager;
     var appId = "Fred's App";
+    var userId = "Frodo";
 
     beforeEach(function() {
         jasmine.clock().install();
@@ -12,24 +13,7 @@ describe("The Websocket Change Manager Class", function() {
             url: "https://huh.com"
         });
         client.sessionToken = "sessionToken";
-        client.userId = "Frodo";
-        client.user = new layer.Identity({
-            clientId: client.appId,
-            userId: client.userId,
-            id: "layer:///identities/" + client.userId,
-            firstName: "first",
-            lastName: "last",
-            phoneNumber: "phone",
-            emailAddress: "email",
-            metadata: {},
-            publicKey: "public",
-            avatarUrl: "avatar",
-            displayName: "display",
-            syncState: layer.Constants.SYNC_STATE.SYNCED,
-            isFullIdentity: true,
-            sessionOwner: true
-        });
-
+        client.user = {userId: userId};
 
         client._clientAuthenticated();
         getObjectResult = null;
@@ -150,7 +134,7 @@ describe("The Websocket Change Manager Class", function() {
               data: {
                 type: 'change',
                 body: {
-                  "operation": "update",
+                  "operation": "patch",
                   data: [],
                   object: {}
                 }
@@ -159,7 +143,7 @@ describe("The Websocket Change Manager Class", function() {
 
             // Posttest
             expect(changeManager._handlePatch).toHaveBeenCalledWith({
-                operation: "update",
+                operation: "patch",
                 data: [],
                 object: {}
             });
@@ -176,7 +160,7 @@ describe("The Websocket Change Manager Class", function() {
               data: {
                 type: 'change2',
                 body: {
-                  "operation": "update",
+                  "operation": "patch",
                   data: [],
                   object: {}
                 }
@@ -255,7 +239,7 @@ describe("The Websocket Change Manager Class", function() {
 
             // Run
             changeManager._handlePatch({
-                operation: "update",
+                operation: "patch",
                 object: {
                     id: m.id,
                     type: "Message"
@@ -287,7 +271,7 @@ describe("The Websocket Change Manager Class", function() {
 
             // Run
             changeManager._handlePatch({
-                operation: "update",
+                operation: "patch",
                 object: {
                     id: "layer:///conversations/fred"
                 },
@@ -316,7 +300,7 @@ describe("The Websocket Change Manager Class", function() {
 
             // Run
             changeManager._handlePatch({
-                operation: "update",
+                operation: "patch",
                 object: {
                     id: "layer:///conversations/fred"
                 },
@@ -344,7 +328,7 @@ describe("The Websocket Change Manager Class", function() {
 
             // Run
             changeManager._handlePatch({
-                operation: "update",
+                operation: "patch",
                 object: {
                     id: "layer:///messages/fred"
                 },
@@ -373,7 +357,7 @@ describe("The Websocket Change Manager Class", function() {
 
             // Run
             changeManager._handlePatch({
-                operation: "update",
+                operation: "patch",
                 object: {
                     id: "layer:///messages/fred"
                 },

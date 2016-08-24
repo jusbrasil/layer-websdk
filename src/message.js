@@ -121,7 +121,6 @@ const LayerError = require('./layer-error');
 const Constants = require('./const');
 const Util = require('./client-utils');
 const ClientRegistry = require('./client-registry');
-const Identity = require('./identity');
 
 class Message extends Syncable {
   /**
@@ -173,7 +172,7 @@ class Message extends Syncable {
     this.isInitializing = false;
     if (options && options.fromServer) {
       client._addMessage(this);
-      const status = this.recipientStatus[client.user.id];
+      const status = this.recipientStatus[client.user.userId];
       if (status && status !== Constants.RECEIPT_STATE.READ && status !== Constants.RECEIPT_STATE.DELIVERED) {
         Util.defer(() => this._sendReceipt('delivery'));
       }
@@ -268,12 +267,12 @@ class Message extends Syncable {
     const value = this[pKey] || {};
     const client = this.getClient();
     if (client) {
-      const id = client.user.id;
+      const id = client.user.userId;
       const conversation = this.getConversation(false);
       if (conversation) {
-        conversation.participants.forEach(participant => {
-          if (!value[participant.id]) {
-            value[participant.id] = participant.id === id ?
+        conversation.participants.forEach(userId => {
+          if (!value[userId]) {
+            value[userId] = userId === id ?
               Constants.RECEIPT_STATE.READ : Constants.RECEIPT_STATE.PENDING;
           }
         });
@@ -303,9 +302,9 @@ class Message extends Syncable {
 
     if (!conversation || Util.doesObjectMatch(status, oldStatus)) return;
 
-    const id = client.user.id;
-    const isSender = this.sender.sessionOwner;
-    const userHasRead = status[id] === Constants.RECEIPT_STATE.READ;
+    const userId = client.user.userId;
+    const isSender = this.sender.userId === userId;
+    const userHasRead = status[userId] === Constants.RECEIPT_STATE.READ;
 
     try {
       // -1 so we don't count this user
@@ -317,7 +316,7 @@ class Message extends Syncable {
       }
 
       // Update the readStatus/deliveryStatus properties
-      const { readCount, deliveredCount } = this._getReceiptStatus(status, id);
+      const { readCount, deliveredCount } = this._getReceiptStatus(status, userId);
       this._setReceiptStatus(readCount, deliveredCount, userCount);
     } catch (error) {
       // Do nothing
@@ -330,7 +329,7 @@ class Message extends Syncable {
     //    proves its delivered.
     // 3. The user is the sender; in that case we do care about rendering receipts from other users
     if (!this.isInitializing && oldStatus) {
-      const usersStateUpdatedToRead = userHasRead && oldStatus[id] !== Constants.RECEIPT_STATE.READ;
+      const usersStateUpdatedToRead = userHasRead && oldStatus[userId] !== Constants.RECEIPT_STATE.READ;
       if (usersStateUpdatedToRead || isSender) {
         this._triggerAsync('messages:change', {
           oldValue: oldStatus,
@@ -348,16 +347,16 @@ class Message extends Syncable {
    * @method _getReceiptStatus
    * @private
    * @param  {Object} status - Object describing the delivered/read/sent value for each participant
-   * @param  {string} id - Identity ID for this user; not counted when reporting on how many people have read/received.
+   * @param  {string} userId - User ID for this user, so we can avoid counting it when reporting on how many people have read/received.
    * @return {Object} result
    * @return {number} result.readCount
    * @return {number} result.deliveredCount
    */
-  _getReceiptStatus(status, id) {
+  _getReceiptStatus(status, userId) {
     let readCount = 0,
       deliveredCount = 0;
     Object.keys(status)
-      .filter(participant => participant !== id)
+      .filter(participant => participant !== userId)
       .forEach(participant => {
         if (status[participant] === Constants.RECEIPT_STATE.READ) {
           readCount++;
@@ -819,17 +818,12 @@ class Message extends Syncable {
     this.sentAt = new Date(message.sent_at);
     this.receivedAt = message.received_at ? new Date(message.received_at) : undefined;
 
-    let sender;
-    if (message.sender.id) {
-      sender = client.getIdentity(message.sender.id);
-    }
-
-    // Because there may be no ID, we have to bypass client._createObject and its switch statement.
-    if (!sender) {
-      sender = Identity._createFromServer(message.sender, client);
-    }
-    this.sender = sender;
-
+    this.sender = {
+      name: message.sender.name,
+      userId: message.sender.user_id,
+      displayName: message.sender.display_name || message.sender.name, // Not well supported; not recommended for use.
+      avatarUrl: message.sender.avatar_url, // Not well supported; not recommended for use.
+    };
 
     this._setSynced();
 
@@ -1032,18 +1026,18 @@ Message.prototype.sentAt = null;
 Message.prototype.receivedAt = null;
 
 /**
- * Identity object representing the sender of the Message.
+ * User object representing the sender of the Message.
  *
- * Most commonly used properties of Identity are:
- * * displayName: A name for your UI
+ * Contains the following properties IF you have defined these within your Identity token:s
+ *
+ * * name: If sent by a Bot or service that does not have a userId, the name property will be used to provide a service name that is defined via Layer's Platform API.
  * * userId: Name for the user as represented on your system
- * * name: Represents the name of a service if the sender was an automated system.
  *
  *      <span class='sent-by'>
- *        {message.sender.displayName || message.sender.name}
+ *        {message.sender.userId || message.sender.name}
  *      </span>
  *
- * @type {layer.Identity}
+ * @type {Object}
  */
 Message.prototype.sender = null;
 

@@ -2,6 +2,7 @@
 describe("The SyncManager Class", function() {
     var socket, client, syncManager;
     var appId = "Fred's App";
+    var userId = "Frodo";
 
     beforeEach(function() {
         jasmine.clock().install();
@@ -12,23 +13,7 @@ describe("The SyncManager Class", function() {
             url: "https://huh.com"
         });
         client.sessionToken = "sessionToken";
-        client.user = new layer.Identity({
-            clientId: client.appId,
-            userId: "Frodo",
-            id: "layer:///identities/" + "Frodo",
-            firstName: "first",
-            lastName: "last",
-            phoneNumber: "phone",
-            emailAddress: "email",
-            metadata: {},
-            publicKey: "public",
-            avatarUrl: "avatar",
-            displayName: "display",
-            syncState: layer.Constants.SYNC_STATE.SYNCED,
-            isFullIdentity: true,
-            sessionOwner: true
-        });
-
+        client.user = {userId: userId};
 
         client._clientAuthenticated();
         getObjectsResult = [];

@@ -1,12 +1,10 @@
 /*eslint-disable */
 describe("The Typing Indicator Classes", function() {
     var appId = "Fred's App";
-
+    var userId= "Frodo";
     var conversation,
         client,
         convId = "layer:///conversations/myconv",
-        johnIdentity,
-        janeIdentity,
         requests;
 
     beforeEach(function() {
@@ -18,39 +16,7 @@ describe("The Typing Indicator Classes", function() {
             url: "https://huh.com"
         });
         client.sessionToken = "sessionToken";
-        client.user = new layer.Identity({
-            clientId: client.appId,
-            userId: "Frodo",
-            id: "layer:///identities/" + "Frodo",
-            firstName: "first",
-            lastName: "last",
-            phoneNumber: "phone",
-            emailAddress: "email",
-            metadata: {},
-            publicKey: "public",
-            avatarUrl: "avatar",
-            displayName: "display",
-            syncState: layer.Constants.SYNC_STATE.SYNCED,
-            isFullIdentity: true,
-            sessionOwner: true
-        });
-
-        johnIdentity = new layer.Identity({
-            client: client,
-            userId: "JohnDoh",
-            id: "layer:///identities/JohnDoh",
-            displayName: "John Doh"
-        });
-        client._addIdentity(johnIdentity);
-
-        janeIdentity = new layer.Identity({
-            client: client,
-            userId: "JaneDoh",
-            id: "layer:///identities/JaneDoh",
-            displayName: "Jane Doh"
-        });
-        client._addIdentity(janeIdentity);
-
+        client.user = {userId: userId};
         client._clientAuthenticated();
         getObjectsResult = [];
         spyOn(client.dbManager, "getObjects").and.callFake(function(tableName, ids, callback) {
@@ -153,10 +119,7 @@ describe("The Typing Indicator Classes", function() {
                     body: {
                         type: "typing_indicator",
                         data: {
-                            sender: {
-                                user_id: client.user.userId + "1",
-                                id: client.user.id + "1"
-                            },
+                            user_id: client.user.userId + "1",
                             action: layer.TypingIndicators.STARTED
                         }
                     }
@@ -182,10 +145,7 @@ describe("The Typing Indicator Classes", function() {
             });
 
             it("Should return false if sent by this user", function() {
-                evt.body.data.sender = {
-                    user_id: client.user.userId,
-                    id: client.user.id
-                };
+                evt.body.data.user_id = client.user.userId;
                 expect(listener._isRelevantEvent(evt)).toBe(false);
             });
         });
@@ -204,10 +164,7 @@ describe("The Typing Indicator Classes", function() {
                         },
                         data: {
                             action: layer.TypingIndicators.STARTED,
-                            sender: {
-                                user_id: "JohnDoh",
-                                id: "layer:///identities/JohnDoh"
-                            }
+                            user_id: "JohnDoh",
                         }
                     }
                 };
@@ -222,13 +179,12 @@ describe("The Typing Indicator Classes", function() {
                 expect(listener.state).toEqual({
                     "layer:///conversations/myconv": {
                         users: {
-                            "layer:///identities/JohnDoh": {
+                            "JohnDoh": {
                                 startTime: jasmine.any(Number),
-                                state: layer.TypingIndicators.STARTED,
-                                identity: johnIdentity
+                                state: layer.TypingIndicators.STARTED
                             }
                         },
-                        typing: ['layer:///identities/JohnDoh'],
+                        typing: ['JohnDoh'],
                         paused: []
                     }
                 });
@@ -241,14 +197,13 @@ describe("The Typing Indicator Classes", function() {
                 expect(listener.state).toEqual({
                     "layer:///conversations/myconv": {
                         users: {
-                            "layer:///identities/JohnDoh": {
+                            "JohnDoh": {
                                 startTime: jasmine.any(Number),
-                                state: layer.TypingIndicators.PAUSED,
-                                identity: johnIdentity
+                                state: layer.TypingIndicators.PAUSED
                             }
                         },
                         typing: [],
-                        paused: ['layer:///identities/JohnDoh']
+                        paused: ['JohnDoh']
                     }
                 });
             });
@@ -272,7 +227,7 @@ describe("The Typing Indicator Classes", function() {
                 listener._handleSocketEvent({data: evt});
                 expect(listener.trigger).toHaveBeenCalledWith("typing-indicator-change", {
                     conversationId: conversation.id,
-                    typing: [johnIdentity.toObject()],
+                    typing: ['JohnDoh'],
                     paused: []
                 });
             });
@@ -314,35 +269,31 @@ describe("The Typing Indicator Classes", function() {
                 listener.state = {
                     "layer:///conversations/myconv": {
                         users: {
-                            "layer:///identities/JohnDoh": {
+                            "JohnDoh": {
                                 startTime: Date.now(),
-                                state: layer.TypingIndicators.PAUSED,
-                                identity: johnIdentity
+                                state: layer.TypingIndicators.PAUSED
                             },
-                            "layer:///identities/JaneDoh": {
+                            "JaneDoh": {
                                 startTime: Date.now() - 1000000,
-                                state: layer.TypingIndicators.STARTED,
-                                identity: janeIdentity
+                                state: layer.TypingIndicators.STARTED
                             }
                         },
-                        typing: ["layer:///identities/JaneDoh"],
-                        paused: ["layer:///identities/JohnDoh"]
+                        typing: ["JaneDoh"],
+                        paused: ["JohnDoh"]
                     },
                     "layer:///conversations/myconv2": {
                         users: {
-                            "layer:///identities/JohnMoh": {
+                            "JohnMoh": {
                                 startTime: Date.now() - 1000000,
-                                state: layer.TypingIndicators.PAUSED,
-                                identity: client.getIdentity('JohnMoh', true)
+                                state: layer.TypingIndicators.PAUSED
                             },
-                            "layer:///identities/JaneMoh": {
+                            "JaneMoh": {
                                 startTime: Date.now() - 1000000,
-                                state: layer.TypingIndicators.STARTED,
-                                identity: client.getIdentity('JaneMoh', true)
+                                state: layer.TypingIndicators.STARTED
                             }
                         },
-                        typing: ["layer:///identities/JaneMoh"],
-                        paused: ["layer:///identities/JohnMoh"]
+                        typing: ["JaneMoh"],
+                        paused: ["JohnMoh"]
                     }
                 };
             });
@@ -356,14 +307,13 @@ describe("The Typing Indicator Classes", function() {
                 expect(listener.state).toEqual({
                     "layer:///conversations/myconv": {
                         users: {
-                            "layer:///identities/JohnDoh": {
+                            "JohnDoh": {
                                 startTime: jasmine.any(Number),
-                                state: layer.TypingIndicators.PAUSED,
-                                identity: johnIdentity
+                                state: layer.TypingIndicators.PAUSED
                             }
                         },
                         typing: [],
-                        paused: ["layer:///identities/JohnDoh"]
+                        paused: ["JohnDoh"]
                     },
                     "layer:///conversations/myconv2": {
                         users: {
@@ -380,7 +330,7 @@ describe("The Typing Indicator Classes", function() {
                 listener._poll();
                 expect(listener.trigger).toHaveBeenCalledWith("typing-indicator-change", {
                     typing: [],
-                    paused: [johnIdentity.toObject()],
+                    paused: ['JohnDoh'],
                     conversationId: "layer:///conversations/myconv"
                 });
 
@@ -503,7 +453,7 @@ describe("The Typing Indicator Classes", function() {
 
             it("Should destroy the publisher", function() {
                 listener.destroy();
-                expect(listener.publisher.isDestroyed);
+                expect(listener.publisher.isDestroyed).toBe(true);
             });
 
             it("Should remove references to the dom", function() {

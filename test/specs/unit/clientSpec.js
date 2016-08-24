@@ -10,7 +10,7 @@ describe("The Client class", function() {
         url1 = "https://huh.com/conversations/test1",
         url2 = "https://huh.com/conversations/test2",
         url3 = "https://huh.com/conversations/test3";
-    var client, requests, userIdentity, userIdentity2;
+    var client, requests;
 
     beforeEach(function() {
         jasmine.clock().install();
@@ -25,18 +25,7 @@ describe("The Client class", function() {
         });
         client.sessionToken = "sessionToken";
 
-        client.user = userIdentity = new layer.Identity({
-            clientId: client.appId,
-            id: "layer:///identities/Frodo",
-            displayName: "Frodo",
-            userId: "Frodo"
-        });
-        userIdentity2 = new layer.Identity({
-            clientId: client.appId,
-            id: "layer:///identities/1",
-            displayName: "UserIdentity",
-            userId: '1'
-        });
+        client.user = {userId: userId};
         client.isReady = true;
     });
 
@@ -63,11 +52,6 @@ describe("The Client class", function() {
             expect(client._conversationsHash).toEqual({});
             expect(client._queriesHash).toEqual({});
             expect(client._scheduleCheckAndPurgeCacheItems).toEqual([]);
-
-            var identityHash = {};
-            identityHash[client.user.id] = client.user;
-            identityHash[userIdentity2.id] = userIdentity2;
-            expect(client._identitiesHash).toEqual(identityHash);
         });
 
 
@@ -134,14 +118,7 @@ describe("The Client class", function() {
     describe("Methods that require clientReady", function() {
         beforeEach(function() {
             client.isTrustedDevice = true;
-            delete client._identitiesHash['layer:///identities/Frodo'];
-            client.user = new layer.Identity({
-               userId: client.userId,
-               displayName: "Frodo2",
-               syncState: layer.Constants.SYNC_STATE.LOADING,
-               clientId: client.appId,
-
-           });
+            client.user = {userId: userId};
 
             client._clientAuthenticated();
             spyOn(client.dbManager, "getObjects").and.callFake(function(tableName, ids, callback) {
@@ -156,7 +133,7 @@ describe("The Client class", function() {
 
         describe("The _cleanup() method", function() {
             afterEach(function() {
-                client._messagesHash = client._conversationsHash = client._queriesHash = client._identitiesHash = {};
+                client._messagesHash = client._conversationsHash = client._queriesHash = {};
             });
 
             it("Should destroy all Messages", function() {
@@ -210,24 +187,6 @@ describe("The Client class", function() {
                 expect(client._queriesHash).toBe(null);
             });
 
-            it("Should destroy all Identities", function() {
-                // Setup
-                client._clientAuthenticated();
-                client._clientReady();
-                var serviceIdentity = new layer.Identity({
-                    clientId: client.appId,
-                    id: "layer:///identities/2",
-                    displayName: "ServiceIdentity"
-                });
-                client._identitiesHash[userIdentity.id] = userIdentity;
-
-                // Run
-                client._cleanup();
-
-                // Posttest
-                expect(userIdentity.isDestroyed).toBe(true);
-                expect(client._identitiesHash).toBe(null);
-            });
 
             it("Should close the websocket", function() {
                 spyOn(client.socketManager, "close");
@@ -264,7 +223,7 @@ describe("The Client class", function() {
                 // Posttest
                 expect(c1 instanceof layer.Conversation).toBe(true);
 
-                expect(c1.participants).toEqual([client.user]);
+                expect(c1.participants).toEqual([client.user.userId]);
                 expect(c1.id).toEqual(cid1);
                 expect(requests.mostRecent().url).toEqual(url1);
             });
@@ -741,253 +700,40 @@ describe("The Client class", function() {
             });
         });
 
-        describe("The _addIdentity() method", function() {
-            it("Should not add a UserIdentity that already exists", function() {
-                // Setup
-                client._identitiesHash = {};
-                client._identitiesHash[userIdentity.id] = userIdentity;
-                userIdentity2.id = userIdentity.id;
-                expect(userIdentity).not.toBe(userIdentity2);
-
-                // Run
-                client._addIdentity(userIdentity2);
-
-                // Posttest
-                var endHash = {};
-                endHash[userIdentity.id] = userIdentity;
-                expect(client._identitiesHash).toEqual(endHash);
-            });
-
-            it("Should add a UserIdentity and trigger identities:add", function() {
-                // Setup
-                client._identitiesHash = {};
-                spyOn(client, "_triggerAsync");
-
-                // Run
-                client._addIdentity(userIdentity);
-
-                // Posttest
-                var endHash = {};
-                endHash[userIdentity.id] = userIdentity;
-                expect(client._identitiesHash).toEqual(endHash);
-                expect(client._triggerAsync).toHaveBeenCalledWith('identities:add', {identities: [userIdentity]});
-            });
-
-            it("Should not add an Identity only a display_name", function() {
-                // Setup
-                client._identitiesHash = {};
-                userIdentity  = new layer.Identity({
-                    client: client,
-                    fromServer: {
-                        display_name: "Fred"
-                    }
-                });
-
-                // Run
-                client._addIdentity(userIdentity);
-
-                // Posttest
-                expect(client._identitiesHash).toEqual({});
-            });
-
-        });
-
-        describe("The _removeIdentity() method", function() {
-            var serviceIdentity;
-            beforeEach(function() {
-                serviceIdentity = new layer.Identity({
-                    clientId: client.appId,
-                    id: "layer:///identities/2",
-                    displayName: "ServiceIdentity"
-                });
-                client._identitiesHash = {};
-                client._identitiesHash[userIdentity.id] = userIdentity;
-                client._identitiesHash[serviceIdentity.id] = serviceIdentity;
-            });
-
-            it("Should ignore irrelevant ID prefixes", function() {
-                expect(function() {
-                    client._removeIdentity(new layer.Identity({
-                        id: "layer:///mountains/2",
-                        clientId: client.appId
-                    }));
-                }).not.toThrow();
-            });
-
-            it("Should ignore IDS not cached", function() {
-                client._removeIdentity(new layer.Identity({
-                    id: "layer:///identities/fooled-you",
-                    clientId: client.appId
-                }));
-                client._removeIdentity(new layer.Identity({
-                    id: "layer:///identities/fooled-you",
-                    clientId: client.appId
-                }));
-
-                // Posttest
-                var endTest = {};
-                endTest[userIdentity.id] = userIdentity;
-                endTest[serviceIdentity.id] = serviceIdentity;
-                expect(client._identitiesHash).toEqual(endTest);
-            });
-
-            it("Should remove UserIdentity and trigger identities:remove", function() {
-                spyOn(client, "_triggerAsync");
-                client._removeIdentity(userIdentity);
-                var endTest = {};
-                endTest[serviceIdentity.id] = serviceIdentity;
-                expect(client._identitiesHash).toEqual(endTest);
-                expect(client._triggerAsync).toHaveBeenCalledWith('identities:remove', {identities: [userIdentity]});
-            });
-
-        });
-
-        describe("The getIdentity() method", function() {
-            var serviceIdentity;
-            beforeEach(function() {
-                serviceIdentity = new layer.Identity({
-                    clientId: client.appId,
-                    id: "layer:///identities/2",
-                    displayName: "ServiceIdentity"
-                });
-                client._identitiesHash = {
-                    "layer:///identities/1": userIdentity2,
-                    "layer:///identities/2": serviceIdentity
-                };
-            });
-
-            it("Should get the user by ID", function() {
-                expect(client.getIdentity(userIdentity2.id)).toBe(userIdentity2);
-            });
-
-            it("Should get the user by UserID", function() {
-                expect(client.getIdentity(userIdentity2.userId)).toBe(userIdentity2);
-            });
-
-            it("Should get the ServiceIdentity by ID", function() {
-                expect(client.getIdentity(serviceIdentity.id)).toBe(serviceIdentity);
-            });
-
-            it("Should load the identity if canLoad was used", function() {
-                var identity = client.getIdentity('222', true);
-                expect(requests.mostRecent().url).toEqual(client.url + '/identities/222');
-                expect(identity.syncState).toEqual(layer.Constants.SYNC_STATE.LOADING);
-            });
-        });
-
-        describe("The _fixIdentities() method", function() {
-            it("Should return identities by userId", function() {
-               expect(client._fixIdentities([userIdentity2.userId])).toEqual([userIdentity2]);
-            });
-
-            it("Should return identities by Identity ID", function() {
-               expect(client._fixIdentities([userIdentity2.id])).toEqual([userIdentity2]);
-            });
-
-            it("Should return identities by identity instance", function() {
-               expect(client._fixIdentities([userIdentity2])).toEqual([userIdentity2]);
-            });
-
-            it("Should return identities by identity object", function() {
-               expect(client._fixIdentities([userIdentity2.toObject()])).toEqual([userIdentity2]);
-            });
-
-            it("Should return identities by server object", function() {
-               expect(client._fixIdentities([{user_id: userIdentity2.userId, id: userIdentity2.id, display_name: userIdentity2.displayName}])).toEqual([userIdentity2]);
-            });
-        });
-
-        describe("The followIdentity() method", function() {
-            it("Should call follow() on an existing Identity", function() {
-                client._identitiesHash[userIdentity.id] = userIdentity;
-                spyOn(userIdentity, "follow");
-
-                // Run
-                var result1 = client.followIdentity(userIdentity.userId);
-                var result2 = client.followIdentity(userIdentity.id);
-
-                // Posttest
-                expect(userIdentity.follow.calls.count()).toEqual(2);
-                expect(result1).toBe(userIdentity);
-                expect(result2).toBe(userIdentity);
-            });
-
-            it("Should call follow() on a new Identity", function() {
-                var tmp = layer.Identity.prototype.follow;
-                spyOn(layer.Identity.prototype, "follow");
-
-                // Run
-                var result1 = client.followIdentity("1");
-
-                // Posttest
-                expect(layer.Identity.prototype.follow.calls.count()).toEqual(1);
-                expect(result1.id).toEqual("layer:///identities/1");
-            });
-        });
-
-        describe("The unfollowIdentity() method", function() {
-            it("Should call unfollow() on an existing Identity", function() {
-                client._identitiesHash[userIdentity.id] = userIdentity;
-                spyOn(userIdentity, "unfollow");
-
-                // Run
-                var result1 = client.unfollowIdentity(userIdentity.userId);
-                var result2 = client.unfollowIdentity(userIdentity.id);
-
-                // Posttest
-                expect(userIdentity.unfollow.calls.count()).toEqual(2);
-                expect(result1).toBe(userIdentity);
-                expect(result2).toBe(userIdentity);
-            });
-
-            it("Should call unfollow() on a new Identity", function() {
-                var tmp = layer.Identity.prototype.unfollow;
-                spyOn(layer.Identity.prototype, "unfollow");
-
-                // Run
-                var result1 = client.unfollowIdentity("1");
-
-                // Posttest
-                expect(layer.Identity.prototype.unfollow.calls.count()).toEqual(1);
-                expect(result1.id).toEqual("layer:///identities/1");
-            });
-
-        });
-
         describe("The _purgeMessagesByPosition() method", function() {
-        var m1, m2, m3, m4, conversation;
+            var m1, m2, m3, m4, conversation;
 
-        beforeEach(function() {
-                conversation = client.createConversation({ participants: ["a"] });
-                var c2 = client.createConversation({ participants: ["b"] });
-                m1 = conversation.createMessage("hello").send();
-                m2 = conversation.createMessage("hello").send();
-                m3 = conversation.createMessage("hello").send();
-                m4 = c2.createMessage("hello").send();
+            beforeEach(function() {
+                    conversation = client.createConversation({ participants: ["a"] });
+                    var c2 = client.createConversation({ participants: ["b"] });
+                    m1 = conversation.createMessage("hello").send();
+                    m2 = conversation.createMessage("hello").send();
+                    m3 = conversation.createMessage("hello").send();
+                    m4 = c2.createMessage("hello").send();
 
-                m1.position = 5;
-                m2.position = 6;
-                m3.position = 7;
-                m4.position = 1;
-                client._purgeMessagesByPosition(conversation.id, 6);
+                    m1.position = 5;
+                    m2.position = 6;
+                    m3.position = 7;
+                    m4.position = 1;
+                    client._purgeMessagesByPosition(conversation.id, 6);
+                });
+
+            it("Should remove messages in the Conversation", function() {
+                expect(m1.isDestroyed).toBe(true);
+                expect(m2.isDestroyed).toBe(true);
             });
 
-        it("Should remove messages in the Conversation", function() {
-            expect(m1.isDestroyed).toBe(true);
-            expect(m2.isDestroyed).toBe(true);
-        });
+            it("Should leave messages not in the Conversation", function() {
+                expect(m3.isDestroyed).toBe(false);
+            });
 
-        it("Should leave messages not in the Conversation", function() {
-            expect(m3.isDestroyed).toBe(false);
-        });
-
-        it("Should leave messages whose position is greater than fromPosition", function() {
-            expect(m4.isDestroyed).toBe(false);
-        });
+            it("Should leave messages whose position is greater than fromPosition", function() {
+                expect(m4.isDestroyed).toBe(false);
+            });
         });
 
         describe("The _getObject() method", function() {
-            var message, announcement, conversation, query, userIdentity, serviceIdentity;
+            var message, announcement, conversation, query;
             beforeEach(function() {
                 client._clientReady();
                 conversation = client.createConversation({ participants: ["a"] });
@@ -999,12 +745,6 @@ describe("The Client class", function() {
                 client._addMessage(announcement);
                 query = client.createQuery({
                     model: "Conversation"
-                });
-                userIdentity = client._createObject(JSON.parse(JSON.stringify(responses.useridentity)));
-                serviceIdentity = client._createObject({
-                    id: "layer:///identities/2",
-                    user_id: "2",
-                    display_name: "ServiceIdentity"
                 });
             });
 
@@ -1019,17 +759,10 @@ describe("The Client class", function() {
                 mHash[message.id] = message;
                 mHash[announcement.id] = announcement;
                 qHash[query.id] = query;
-                identHash[userIdentity.id] = userIdentity;
-                identHash[client.user.id] = client.user;
-                identHash['layer:///identities/a'] = client.getIdentity('a');
-                identHash[responses.useridentity.id] = client.getIdentity(responses.useridentity.id);
-                identHash[userIdentity2.id] = userIdentity2;
-                identHash[serviceIdentity.id] = serviceIdentity;
 
                 expect(client._conversationsHash).toEqual(cHash);
                 expect(client._messagesHash).toEqual(mHash);
                 expect(client._queriesHash).toEqual(qHash);
-                expect(client._identitiesHash).toEqual(identHash);
             });
 
             it("Should get a Conversation", function() {
@@ -1062,22 +795,6 @@ describe("The Client class", function() {
 
             it("Should not get a Query", function() {
                 expect(client._getObject(query.id + "a")).toBe(null);
-            });
-
-            it("Should get a UserIdentity", function() {
-                expect(client._getObject(userIdentity.id)).toBe(userIdentity);
-            });
-
-            it("Should not get a UserIdentity", function() {
-                expect(client._getObject(userIdentity.id + "a")).toBe(null);
-            });
-
-            it("Should get a ServiceIdentity", function() {
-                expect(client._getObject(serviceIdentity.id)).toBe(serviceIdentity);
-            });
-
-            it("Should not get a ServiceIdentity", function() {
-                expect(client._getObject(serviceIdentity.id + "a")).toBe(null);
             });
 
             it("Should not get a non-layer-object", function() {
@@ -1160,52 +877,6 @@ describe("The Client class", function() {
 
                 // Restore
                 layer.Conversation._createFromServer = tmp;
-            });
-
-            it("Should call Identity._createFromServer", function() {
-                // Setup
-                var tmp = layer.Identity._createFromServer;
-                var identity = new layer.Identity({
-                    id: responses.useridentity.id,
-                    clientId: client.appId
-                });
-                spyOn(layer.Identity, "_createFromServer").and.returnValue(identity);
-                var identityObj = JSON.parse(JSON.stringify(responses.useridentity));
-                delete client._identitiesHash[identity.id];
-
-                // Run
-                var identity2 = client._createObject(identityObj);
-
-                // Posttest
-                expect(identity2).toBe(identity);
-                expect(layer.Identity._createFromServer).toHaveBeenCalledWith(identityObj, client);
-
-                // Restore
-                layer.Identity._createFromServer = tmp;
-            });
-
-            it("Should call ServiceIdentity._createFromServer", function() {
-                // Setup
-                var tmp = layer.Identity._createFromServer;
-                var identity = new layer.Identity({
-                    id: layer.Identity.prefixUUID + '/dohbot',
-                    clientId: client.appId
-                });
-                spyOn(layer.Identity, "_createFromServer").and.returnValue(identity);
-                var identityObj = {
-                    displayName: "dohbot",
-                    id: "layer:///identities/dohbot"
-                };
-
-                // Run
-                var identity2 = client._createObject(identityObj);
-
-                // Posttest
-                expect(identity2).toBe(identity);
-                expect(layer.Identity._createFromServer).toHaveBeenCalledWith(identityObj, client);
-
-                // Restore
-                layer.Identity._createFromServer = tmp;
             });
         });
 
@@ -1327,60 +998,6 @@ describe("The Client class", function() {
                         })]
                     ], "messages", client);
             });
-
-            it("Should call _foldEvents on all identities:add events", function() {
-                // Setup
-                var i1 = new layer.Identity({clientId: client.appId, userId: "a", id: "layer:///identities/a"});
-                var i2 = new layer.Identity({clientId: client.appId, userId: "b", id: "layer:///identities/b"});
-                client._delayedTriggers = [];
-                client._triggerAsync("identities:a", {value: "a"});
-                client._triggerAsync("identities:b", {value: "b"});
-                client._triggerAsync("identities:add", {identities: [i1]});
-                client._triggerAsync("identities:add", {identities: [i2]});
-                client._triggerAsync("identities:c", {value: "c"});
-                spyOn(client, "_foldEvents");
-
-                // Run
-                client._processDelayedTriggers();
-
-                // Posttest
-                expect(client._foldEvents)
-                    .toHaveBeenCalledWith([
-                        ["identities:add", jasmine.objectContaining({
-                            identities: [i1]
-                        })],
-                        ["identities:add", jasmine.objectContaining({
-                            identities: [i2]
-                        })]
-                    ], "identities", client);
-            });
-
-            it("Should call _foldEvents on all identities:remove events", function() {
-                // Setup
-                var i1 = new layer.Identity({clientId: client.appId, userId: "a", id: "layer:///identities/a"});
-                var i2 = new layer.Identity({clientId: client.appId, userId: "b", id: "layer:///identities/b"});
-                client._delayedTriggers = [];
-                client._triggerAsync("identities:a", {value: "a"});
-                client._triggerAsync("identities:b", {value: "b"});
-                client._triggerAsync("identities:remove", {identities: [i1]});
-                client._triggerAsync("identities:remove", {identities: [i2]});
-                client._triggerAsync("identities:c", {value: "c"});
-                spyOn(client, "_foldEvents");
-
-                // Run
-                client._processDelayedTriggers();
-
-                // Posttest
-                expect(client._foldEvents)
-                    .toHaveBeenCalledWith([
-                        ["identities:remove", jasmine.objectContaining({
-                            identities: [i1]
-                        })],
-                        ["identities:remove", jasmine.objectContaining({
-                            identities: [i2]
-                        })]
-                    ], "identities", client);
-            });
         });
 
         describe("The findCachedConversation() method", function() {
@@ -1438,12 +1055,10 @@ describe("The Client class", function() {
             });
 
             it("Should return matching Conversation", function() {
-                // Setup
-                var identity = client.getIdentity("b");
 
                 // Run
                 var result = client.findCachedConversation(function(conversation) {
-                    return conversation.participants.indexOf(identity) != -1;
+                    return conversation.participants.indexOf('b') != -1;
                 });
 
                 // Posttest
@@ -1496,22 +1111,6 @@ describe("The Client class", function() {
                 // Posttest
                 expect(client._queriesHash).toEqual({});
             });
-
-            it("Should reset identity data", function() {
-                // Setup
-                client._clientReady();
-                var serviceIdentity = new layer.Identity({
-                    clientId: client.appId,
-                    id: "layer:///identities/2",
-                    displayName: "ServiceIdentity"
-                });
-
-                // Run
-                client._resetSession();
-
-                // Posttest
-                expect(client._identitiesHash).toEqual({});
-            });
         });
 
         describe("The createConversation() method", function() {
@@ -1539,11 +1138,11 @@ describe("The Client class", function() {
 
             it("Should create a conversation with a full object and identities", function() {
                 // Run
-                var c = client.createConversation({participants: [userIdentity, userIdentity2]});
+                var c = client.createConversation({participants: ['a', 'b']});
 
                 // Posttest
                 expect(layer.Conversation.create).toHaveBeenCalledWith({
-                    participants: [userIdentity, userIdentity2],
+                    participants: ['a', 'b'],
                     distinct: true,
                     client: client
                 });

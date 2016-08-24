@@ -72,7 +72,7 @@ class TypingIndicatorListener extends Root {
   _isRelevantEvent(evt) {
     return evt.type === 'signal' &&
       evt.body.type === 'typing_indicator' &&
-      evt.body.data.sender.id !== this.user.id;
+      evt.body.data.user_id !== this.user.userId;
   }
 
   /**
@@ -87,10 +87,7 @@ class TypingIndicatorListener extends Root {
     const evt = evtIn.data;
 
     if (this._isRelevantEvent(evt)) {
-      // Could just do _createObject() but for ephemeral events, going through _createObject and updating
-      // objects for every typing indicator seems a bit much.  Try getIdentity and only create if needed.
-      const identity = this._getClient().getIdentity(evt.body.data.sender.id) ||
-        this._getClient()._createObject(evt.body.data.sender);
+      const sender = evt.body.data.user_id;
       const state = evt.body.data.action;
       const conversationId = evt.body.object.id;
       let stateEntry = this.state[conversationId];
@@ -101,21 +98,20 @@ class TypingIndicatorListener extends Root {
           paused: [],
         };
       }
-      stateEntry.users[identity.id] = {
+      stateEntry.users[sender] = {
         startTime: Date.now(),
         state,
-        identity,
       };
-      if (stateEntry.users[identity.id].state === FINISHED) {
-        delete stateEntry.users[identity.id];
+      if (stateEntry.users[sender].state === FINISHED) {
+        delete stateEntry.users[sender];
       }
 
-      this._updateState(stateEntry, state, identity.id);
+      this._updateState(stateEntry, state, sender);
 
       this.trigger('typing-indicator-change', {
         conversationId,
-        typing: stateEntry.typing.map(id => stateEntry.users[id].identity.toObject()),
-        paused: stateEntry.paused.map(id => stateEntry.users[id].identity.toObject()),
+        typing: stateEntry.typing,
+        paused: stateEntry.paused,
       });
     }
   }
@@ -131,17 +127,17 @@ class TypingIndicatorListener extends Root {
    * @private
    * @param  {Object} stateEntry - A Conversation's typing indicator state
    * @param  {string} newState   - started, paused or finished
-   * @param  {string} identityId     - ID of the user whose state has changed
+   * @param  {string} userId     - User ID of the user whose state has changed
    */
-  _updateState(stateEntry, newState, identityId) {
-    const typingIndex = stateEntry.typing.indexOf(identityId);
+  _updateState(stateEntry, newState, userId) {
+    const typingIndex = stateEntry.typing.indexOf(userId);
     if (newState !== STARTED && typingIndex !== -1) {
       stateEntry.typing = [
         ...stateEntry.typing.slice(0, typingIndex),
         ...stateEntry.typing.slice(typingIndex + 1),
       ];
     }
-    const pausedIndex = stateEntry.paused.indexOf(identityId);
+    const pausedIndex = stateEntry.paused.indexOf(userId);
     if (newState !== PAUSED && pausedIndex !== -1) {
       stateEntry.paused = [
         ...stateEntry.paused.slice(0, pausedIndex),
@@ -151,9 +147,9 @@ class TypingIndicatorListener extends Root {
 
 
     if (newState === STARTED && typingIndex === -1) {
-      stateEntry.typing = [...stateEntry.typing, identityId];
+      stateEntry.typing = [...stateEntry.typing, userId];
     } else if (newState === PAUSED && pausedIndex === -1) {
-      stateEntry.paused = [...stateEntry.paused, identityId];
+      stateEntry.paused = [...stateEntry.paused, userId];
     }
   }
 
@@ -184,14 +180,14 @@ class TypingIndicatorListener extends Root {
     conversationIds.forEach(id => {
       const state = this.state[id];
       Object.keys(state.users)
-        .forEach((identityId) => {
-          if (Date.now() >= state.users[identityId].startTime + 6000) {
-            this._updateState(state, FINISHED, identityId);
-            delete state.users[identityId];
+        .forEach((userId) => {
+          if (Date.now() >= state.users[userId].startTime + 6000) {
+            this._updateState(state, FINISHED, userId);
+            delete state.users[userId];
             this.trigger('typing-indicator-change', {
               conversationId: id,
-              typing: state.typing.map(aIdentityId => state.users[aIdentityId].identity.toObject()),
-              paused: state.paused.map(aIdentityId => state.users[aIdentityId].identity.toObject()),
+              typing: state.typing,
+              paused: state.paused,
             });
           }
         });
@@ -232,8 +228,8 @@ TypingIndicatorListener._supportedEvents = [
    * There has been a change in typing indicator state of other users.
    * @event change
    * @param {layer.LayerEvent} evt
-   * @param {layer.Identity[]} evt.typing - Array of Identities of people who are typing
-   * @param {layer.Identity[]} evt.paused - Array of Identities of people who are paused
+   * @param {String[]} evt.typing - Array of User IDs of people who are typing
+   * @param {String[]} evt.paused - Array of User IDs of people who are paused
    * @param {string} evt.conversationId - ID of the Converation that has changed typing indicator state
    */
   'typing-indicator-change',

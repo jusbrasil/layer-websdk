@@ -10,7 +10,6 @@ module.exports = {
   Query: require('./src/query'),
   QueryBuilder: require('./src/query-builder'),
   xhr: require('./src/xhr'),
-  Identity: require('./src/identity'),
   LayerError: require('./src/layer-error'),
   LayerEvent: require('./src/layer-event'),
   Content: require('./src/content'),

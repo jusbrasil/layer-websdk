@@ -215,74 +215,6 @@ class ConversationsQuery {
 
 
 /**
- * Query builder class generating queries for a set of Identities followed by this user.
- *
- * Used in Creating and Updating layer.Query instances.
- *
- * To get started:
- *
- *      var qBuilder = QueryBuilder
- *       .identities()
- *       .paginationWindow(100);
- *      var query = client.createQuery(qBuilder);
- *
- * @class layer.QueryBuilder.IdentitiesQuery
- */
-class IdentitiesQuery {
-
-  /**
-   * Creates a new query builder for a set of conversations.
-   *
-   * Standard use is without any arguments.
-   *
-   * @method constructor
-   * @param  {Object} [query=null]
-   */
-  constructor(query) {
-    if (query) {
-      this._query = {
-        model: query.model,
-        returnType: query.returnType,
-        dataType: query.dataType,
-        paginationWindow: query.paginationWindow,
-      };
-    } else {
-      this._query = {
-        model: Query.Identity,
-        returnType: 'object',
-        dataType: 'object',
-        paginationWindow: Query.prototype.paginationWindow,
-      };
-    }
-  }
-
-  /**
-   * Sets the pagination window/number of messages to fetch from the local cache or server.
-   *
-   * Currently only positive integers are supported.
-   *
-   * @method paginationWindow
-   * @param  {number} win
-   * @return {layer.QueryBuilder} this
-   */
-  paginationWindow(win) {
-    this._query.paginationWindow = win;
-    return this;
-  }
-
-  /**
-   * Returns the built query object to send to the server.
-   *
-   * Called by layer.QueryBuilder. You should not need to call this.
-   *
-   * @method build
-   */
-  build() {
-    return this._query;
-  }
-}
-
-/**
  * Query builder class. Used with layer.Query to specify what local/remote
  * data changes to subscribe to.  For examples, see layer.QueryBuilder.MessagesQuery
  * and layer.QueryBuilder.ConversationsQuery.  This static class is used to instantiate
@@ -360,8 +292,6 @@ const QueryBuilder = {
         return new AnnouncementsQuery(obj);
       case Query.Conversation:
         return new ConversationsQuery(obj);
-      case Query.Identity:
-        return new IdentitiesQuery(obj);
       default:
         return null;
     }

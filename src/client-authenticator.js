@@ -37,7 +37,6 @@ const LayerError = require('./layer-error');
 const OnlineManager = require('./online-state-manager');
 const SyncManager = require('./sync-manager');
 const DbManager = require('./db-manager');
-const Identity = require('./identity');
 const { XHRSyncEvent, WebsocketSyncEvent } = require('./sync-event');
 const { ACCEPT, LOCALSTORAGE_KEYS } = require('./const');
 const logger = require('./logger');
@@ -72,16 +71,8 @@ class ClientAuthenticator extends Root {
    *                                            layer.Constants.LOG.WARN, layer.Constants.LOG.INFO, layer.Constants.LOG.DEBUG
    * @param {boolean} [options.isTrustedDevice=false] - If this is not a trusted device, no data will be written to indexedDB nor localStorage,
    *                                            regardless of any values in layer.Client.persistenceFeatures.
-   * @param {Object} [options.persistenceFeatures=] If layer.Client.isTrustedDevice is true, then this specifies what types of data to store.
-   *                                            Want to insure credit card data is not written? Disable writing of Messages to indexedDB.
-   *                                            Default is for all data to be stored.
-   *                                            * identities: Write identities to indexedDB? This allows for faster initialization.
-   *                                            * conversations: Write conversations to indexedDB? This allows for faster rendering
-   *                                                             of a Conversation List
-   *                                            * messages: Write messages to indexedDB? This allows for full offline access
-   *                                            * syncQueue: Write requests made while offline to indexedDB?  This allows the app
-   *                                                         to complete sending messages after being relaunched.
-   *                                            * sessionToken: Write the session token to localStorage for quick reauthentication on relaunching the app.
+   * @param {Object} [options.persistenceEnabled=false] If layer.Client.isPersistenceEnabled is true, then indexedDB will be used to manage a cache
+   *                                            allowing Query results, messages sent, and all local modifications to be persisted between page reloads.
    */
   constructor(options) {
     // Validate required parameters
@@ -183,18 +174,14 @@ class ClientAuthenticator extends Root {
    *
    * @method _restoreLastSession
    * @private
-   * @return {layer.Identity}
+   * @return {Object}
    */
   _restoreLastUser() {
     try {
       const sessionData = global.localStorage[LOCALSTORAGE_KEYS.SESSIONDATA + this.appId];
       if (!sessionData) return null;
       const userObj = JSON.parse(sessionData).user;
-      return new Identity({
-        clientId: this.appId,
-        sessionOwner: true,
-        fromServer: userObj,
-      });
+      return userObj;
     } catch (error) {
       return null;
     }
@@ -212,7 +199,7 @@ class ClientAuthenticator extends Root {
     try {
       const sessionData = global.localStorage[LOCALSTORAGE_KEYS.SESSIONDATA + this.appId];
       if (!sessionData) return true;
-      return JSON.parse(sessionData).user.user_id !== userId;
+      return JSON.parse(sessionData).user.userId !== userId;
     } catch (error) {
       return true;
     }
@@ -247,12 +234,9 @@ class ClientAuthenticator extends Root {
     }
 
     if (!this.user) {
-      this.user = new Identity({
-        userId,
-        sessionOwner: true,
-        clientId: this.appId,
-        id: userId ? Identity.prefixUUID + encodeURIComponent(userId) : '',
-      });
+      this.user = {
+        userId
+      };
     }
 
     if (this.sessionToken && this.user.userId) {
@@ -299,12 +283,9 @@ class ClientAuthenticator extends Root {
     this.onlineManager.start();
 
     if (!this.user) {
-      this.user = new Identity({
+      this.user = {
         userId,
-        sessionOwner: true,
-        clientId: this.appId,
-        id: Identity.prefixUUID + encodeURIComponent(userId),
-      });
+      };
     }
 
     this.isConnected = true;
@@ -413,7 +394,7 @@ class ClientAuthenticator extends Root {
 
       if (this.user.userId && this.user.userId !== identityObj.prn) throw new Error(LayerError.dictionary.invalidUserIdChange);
 
-      this.user._setUserId(identityObj.prn);
+      this.user.userId = identityObj.prn;
 
       if (identityObj.display_name) this.user.displayName = identityObj.display_name;
       if (identityObj.avatar_url) this.user.avatarUrl = identityObj.avatar_url;
@@ -470,7 +451,7 @@ class ClientAuthenticator extends Root {
       try {
         global.localStorage[LOCALSTORAGE_KEYS.SESSIONDATA + this.appId] = JSON.stringify({
           sessionToken: this.sessionToken || '',
-          user: DbManager.prototype._getIdentityData([this.user])[0],
+          user: this.user,
           expires: Date.now() + 30 * 60 * 60 * 24 * 1000,
         });
       } catch (e) {
@@ -524,15 +505,16 @@ class ClientAuthenticator extends Root {
     this.isAuthenticated = true;
     this.trigger('authenticated');
 
+    if (!this.isTrustedDevice) this.isPersistenceEnabled = false;
+
     // If no persistenceFeatures are specified, set them all
     // to true or false to match isTrustedDevice.
-    if (!this.persistenceFeatures || !this.isTrustedDevice) {
+    if (!this.persistenceFeatures || !this.isPersistenceEnabled) {
       this.persistenceFeatures = {
-        identities: this.isTrustedDevice,
-        conversations: this.isTrustedDevice,
-        messages: this.isTrustedDevice,
-        syncQueue: this.isTrustedDevice,
-        sessionToken: this.isTrustedDevice,
+        conversations: this.isPersistenceEnabled,
+        messages: this.isPersistenceEnabled,
+        syncQueue: this.isPersistenceEnabled,
+        sessionToken: this.isPersistenceEnabled,
       };
     }
 
@@ -544,46 +526,10 @@ class ClientAuthenticator extends Root {
       });
     }
 
-    // Before calling _clientReady, load the session owner's full Identity.
-    if (this.isTrustedDevice) {
-      this.dbManager.onOpen(() => this._loadUser());
+    if (this.isPersistenceEnabled) {
+      this.dbManager.onOpen(() => this._clientReady());
     } else {
-      this._loadUser();
-    }
-  }
-
-  /**
-   * Load the session owner's full identity.
-   *
-   * Note that failure to load the identity will not prevent
-   * _clientReady, but is certainly not a desired outcome.
-   *
-   * @method _loadUser
-   */
-  _loadUser() {
-    // We're done if we got the full identity from localStorage.
-    if (this.user.isFullIdentity) {
       this._clientReady();
-    } else {
-      // load the user's full Identity and update localStorage
-      this.user._load();
-      this.user.once('identities:loaded', () => {
-        if (!this._isPersistedSessionsDisabled()) {
-          try {
-            // Update the session data in localStorage with our full Identity.
-            const sessionData = JSON.parse(global.localStorage[LOCALSTORAGE_KEYS.SESSIONDATA + this.appId]);
-            sessionData.user = DbManager.prototype._getIdentityData([this.user])[0];
-            global.localStorage[LOCALSTORAGE_KEYS.SESSIONDATA + this.appId] = JSON.stringify(sessionData);
-          } catch (e) {
-            // no-op
-          }
-        }
-        this._clientReady();
-      })
-      .once('identities:loaded-error', () => {
-        if (!this.user.displayName) this.user.displayName = this.defaultOwnerDisplayName;
-        this._clientReady();
-      });
     }
   }
 
@@ -628,13 +574,14 @@ class ClientAuthenticator extends Root {
       this.xhr({
         method: 'DELETE',
         url: '/sessions/' + escape(this.sessionToken),
+      }, () => {
+        this._clearStoredData(callback);
       });
     }
 
     // Clear data even if isAuthenticated is false
     // Session may have expired, but data still cached.
     this._resetSession();
-    this._clearStoredData(callback);
     return this;
   }
 
@@ -760,27 +707,6 @@ class ClientAuthenticator extends Root {
   __adjustAppId() {
     if (this.isConnected) throw new Error(LayerError.dictionary.cantChangeIfConnected);
   }
-
- /**
-  * __ Methods are automatically called by property setters.
-  *
-  * Any attempt to execute `this.user = userIdentity` will cause an error to be thrown
-  * if the client is already connected.
-  *
-  * @private
-  * @method __adjustUser
-  * @param {string} user - new Identity object
-  */
-  __adjustUser(user) {
-    if (this.isConnected) {
-      throw new Error(LayerError.dictionary.cantChangeIfConnected);
-    }
-  }
-
-  // Virtual methods
-  _addIdentity(identity) {}
-  _removeIdentity(identity) {}
-
 
   /* ACCESSOR METHODS END */
 
@@ -1050,7 +976,7 @@ ClientAuthenticator.prototype.appId = '';
 /**
  * You can use this to find the userId you are logged in as.
  *
- * @type {layer.Identity}
+ * @type {Object}
  */
 ClientAuthenticator.prototype.user = null;
 
@@ -1113,11 +1039,19 @@ ClientAuthenticator.prototype.onlineManager = null;
 ClientAuthenticator.prototype.isTrustedDevice = false;
 
 /**
+ * To enable indexedDB storage of query data, set this true.  Experimental.
+ *
+ * @property {boolean}
+ */
+ClientAuthenticator.prototype.isPersistenceEnabled = false;
+
+/**
  * If this layer.Client.isTrustedDevice is true, then you can control which types of data are persisted.
+ *
+ * Note that values here are ignored if `isPersistenceEnabled` hasn't been set to `true`.
  *
  * Properties of this Object can be:
  *
- * * identities: Write identities to indexedDB? This allows for faster initialization.
  * * conversations: Write conversations to indexedDB? This allows for faster rendering
  *                  of a Conversation List
  * * messages: Write messages to indexedDB? This allows for full offline access
@@ -1129,7 +1063,6 @@ ClientAuthenticator.prototype.isTrustedDevice = false;
  *        isTrustedDevice: true,
  *        persistenceFeatures: {
  *          conversations: true,
- *          identities: true,
  *          messages: false,
  *          syncQueue: false,
  *          sessionToken: true

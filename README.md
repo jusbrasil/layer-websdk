@@ -3,12 +3,12 @@
 [![Build Status](http://img.shields.io/travis/layerhq/layer-websdk.svg)](https://travis-ci.org/layerhq/layer-websdk)
 [![npm version](http://img.shields.io/npm/v/layer-websdk.svg)](https://npmjs.org/package/layer-websdk)
 
-The Layer Web SDK is a JavaScript library for adding chat services to your web application. For detailed documentation, tutorials and guides please visit our [Web SDK documentation](https://developer.layer.com/docs/websdk).
+The Layer Web SDK is a JavaScript library for adding chat services to your web application. For detailed documentation, tutorials and guides please visit our [Web SDK documentation](https://docs.layer.com/sdk/web/install).
 
 ## Supported Browsers
 
 * IE 11 and Edge
-* Safari 7
+* Safari 7 and up
 * Chrome 42 and up
 * Firefox 40 and up
 
@@ -38,7 +38,9 @@ var client = new layer.Client({
 
 ### NPM
 
-    npm install layer-websdk@beta --save
+```console
+npm install layer-websdk --save
+```
 
 All classes can then be accessed via the layer module:
 
@@ -51,8 +53,6 @@ var client = new layer.Client({
 ```
 
 ### From source
-
-**This section does not apply to beta!**
 
 Download the latest SDK release [Source code](https://github.com/layerhq/layer-websdk/releases/latest) archive, extract the files and run the following commands from the extracted project folder:
 
@@ -69,7 +69,7 @@ Other build commands:
 
 ## About this README
 
-This README contains everything you need to get started.  But is NOT an exhaustive source of documentation.  For the full documentation, or for any topics that are missing here, go to the [Web SDK documentation](https://developer.layer.com/docs/websdk).
+This README contains everything you need to get started.  But is NOT an exhaustive source of documentation.  For the full documentation, or for any topics that are missing here, go to the [Web SDK documentation](https://docs.layer.com/sdk/web/install).
 
 ## Getting Started
 
@@ -134,7 +134,6 @@ client.connect('Frodo_the_Dodo');
 ```
 
 This call will start the authentication process.  If using the `layer.Client.isTrustedDevice` property, it may try to restore your last Session Token and skip authentication.
-
 
 ### Accessing Data
 
@@ -276,9 +275,9 @@ Authentication requires that:
 * your client sends a request to your identity service to get an Identity Token
 * your client provides that identity token to the Layer Web SDK
 
-Some of these concepts are explained in more detail in the [Authentication Guide](https://developer.layer.com/docs/websdk/guides#authentication); concepts specific to the Layer Web SDK are described here.
+Some of these concepts are explained in more detail in the [Authentication Guide](https://docs.layer.com/sdk/web/authentication#identity-token); concepts specific to the Layer Web SDK are described here.
 
-Assuming that you have an [Identity Provider](https://developer.layer.com/docs/websdk/guides#authentication), your javascript application will need to provide some method (`getIdentityToken()` in the example below) that gets the identity token.
+Assuming that you have an [Identity Provider](https://docs.layer.com/sdk/web/authentication#identity-token), your javascript application will need to provide some method (`getIdentityToken()` in the example below) that gets the identity token.
 
 ```javascript
 function getIdentityToken(nonce, callback) {
@@ -339,7 +338,7 @@ client.connect('Frodo_the_Dodo');
 
 ```javascript
 var conversation = client.createConversation({
-    participants: ['layer:///identities/a','layer:///identities/b'],
+    participants: ['Frodo_the_Dodo','Samwise_the_Brave'],
     distinct: false,
     metadata: {
         title: 'My conversation title'
@@ -362,8 +361,8 @@ var message = conversation.createMessage({
         mimeType: 'text/plain'
     })]
 }).send({
-    title: 'New Message from World',
-    text: 'World Says "Hello World"; its a very self involved planet',
+    title: 'New Message from the World',
+    text: 'The world Says "Hello World"; its a very self involved planet',
     sound: 'ding.aiff'
 });
 ```
@@ -388,6 +387,7 @@ message.send({
     sound: 'ding.aiff'
 });
 ```
+The exact meaning of these fields, and how to use them will depend on the platform that is receiving them; please consult the IOS and Android docs for more information.
 
 ## Retrieving a Conversation
 
@@ -438,60 +438,15 @@ message.once("messages:loaded", function() {
 ```
 The `messages:loaded` event will be called immediately if its already loaded.
 
-## Identity
-
-Identity is a key concept for working with Layer's Web SDK;
-
-* Your Conversations have a `participants` property that consists of an array of layer.Identity objects
-* Each message has a `sender` property that is a layer.Identity object
-* Your layer.Client has a `user` property that is a layer.Identity object
-
-Any method for operating upon the `participants` of a Conversation will either expect an Identity object, or an Identity ID.  An Identity ID can be derived from a User ID in your own User Management system using:
-
-```javascript
-var identityId = 'layer:///identities/' + encodeURIComponent(userId);
-```
-
-The Identity object insures that any time you receive an object from Layer, it comes with enough information to know who a user is and how to render that user. In previous versions, you would have to Query your own server to gather this data.  Each Identity comes with:
-
-* `userId`: Allows you to map the Identity to a user in your own User Management system
-* `id`: Allows you to identify the user to any of Layer's APIs
-* `displayName` & `avatarUrl`: Helps you to render the user within your UI
-
-Note that in order to populate `displayName` and `avatarUrl` with values, you must either
-
-* Embed this information into the [Identity Token](https://developer.layer.com/docs/websdk/guides#authentication) generated for your user
-* Set this information using the [Platform API](https://developer.layer.com/docs/platform)
-
-### Retrieving Identities
-
-Sometimes it can be useful to load the Identities of people your user interacts with.  The list of users that is retreived via a Query is the list of people where:
-
-* They have at some point shared a Conversation with your user
-* Your user called `client.followIdentity(Identity ID)` on them
-* Your server has used the [Platform API](https://developer.layer.com/docs/platform) to make these users follow one another
-
-This list is useful for generating a list of people to create a Conversation with, and providing both information for rendering them, as well as profile information to show your users.
-
-```javascript
-var query = client.createQuery({
-    model: layer.Query.Identity
-});
-
-query.on('change', function(evt) {
-    var identities = query.data;
-    myUserSelectionListRenderer(identities);
-});
-```
-
 ## Persistence
 
-Options exist to cache data in the browser.  All of these capabilities are protected by the `isTrustedDevice` property.  If the device is not trusted, no data will be stored.  This is the default state.  But if you set `isTrustedState` to true, then data can be saved.
+Options exist to cache data in the browser.  All of these capabilities are protected by the `isTrustedDevice` property as well as the `isPersistenceEnabled` property.  If the device is not trusted, no data will be stored.  If `isPersistenceEnabled` is not enabled, no data will be stored in IndexedDB (Your user's Session Token will still be persisted to localStorage).    But if you set both of these to true, then data can be saved.
 
 ```javascript
 var client = new layer.Client({
   appId: LAYER_APP_ID,
-  isTrustedDevice: true
+  isTrustedDevice: true,
+  isPersistenceEnabled: true
 });
 ```
 
@@ -500,52 +455,9 @@ By default, `isTrustedDevice` will enable the following types of data to be stor
 * Conversations
 * Messages
 * Announcements
-* Identity data for the people this user chats with
 * Server Requests that have not yet completed
 * The Session Token
 
-Applications can configure which of these tables are used by using the `persistenceFeatures` property:
-
-```javascript
-var client = new layer.Client({
-  appId: LAYER_APP_ID,
-  isTrustedDevice: true,
-  persistenceFeatures: {
-    messages: false,
-    conversations: true,
-    identities: false,
-    syncQueue: true,
-    sessionToken: true
-  }
-});
-```
-
-Cordova and other installed apps would typically just have everything set to `true` (i.e. just use `isTrustedDevice` and use the default `persistenceFeatures`).  Below are discussions of why you should/should not store various types of data.
-
-### Persisting Messages
-
-Even if this is a trusted device, if your Messages contain credit card numbers, illicit liasons, etc... it may be best not to store this data in the browser.  Storing Messages allows the client to display messages within Conversations without waiting for any server connection, which has many advantages in performance and ability to operate without a connection.
-
-### Persisting Conversations
-
-While this is generally safer than storing Messages,
-
-1. If your Conversation's `metadata` property contains sensitive information, you should consider whether it should be stored
-2. Apps where user ids in Conversations are easily mapped to real users would potentially expose who a person is talking to.
-
-Storing these allows a user to quickly see their Conversation list even without a connection.  That Conversation list is the starting point for many applications, and any performance improvement in rendering that list is preferred.
-
-### Identities
-
-Identities are used to help render information about people in Conversations or who you may want to start a Conversation with.  Storing identities allows this data to be quickly available and easily kept in sync.  You control what goes in the Identity from your servers via [Platform API](https://developer.layer.com/docs/platform/users#managing-identity).  If your writing phone numbers, email addresses, or other information that may be sensitive, consider whether this data is a potential security flaw even when `isTrustedDevice` has been set to `true`.
-
-### Server Requests
-
-The `syncQueue` property, if true, allows any unsent request to be written to persistent memory and completed when the app is next relaunched.  If `messages` or `conversations` are disabled, then so is caching of Server Requests.
-
-### Session Token
-
-Typically if a device is trusted, then you'd expect it to be easy to re-login.  If this is not the case, you can change this to false.  If false, a new Session Token will be generated each time the browser tab is reloaded.
 
 ## Change Events
 

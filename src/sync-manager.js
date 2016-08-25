@@ -10,10 +10,6 @@
  * 3. when a request should be aborted
  * 4. triggering any request callbacks
  *
- * TODO WEB-850: Currently the sync queue is managed solely in runtime memory.  But the queue should be stored
- * in persistent memory so that a tab-reload can restore the queue without losing commands that the user has
- * been told have been accepted.
- *
  * TODO: In the event of a DNS error, we may have a valid websocket receiving events and telling us we are online,
  * and be unable to create a REST call.  This will be handled wrong because evidence will suggest that we are online.
  * This issue goes away when we use bidirectional websockets for all requests.
@@ -114,8 +110,10 @@ class SyncManager extends Root {
   /**
    * Adds a new xhr request to the queue.
    *
-   * If the queue is empty, this will be fired immediately.
-   * If the queue is non-empty, this will wait until all other requests in the queue have been fired.
+   * If the queue is empty, this will be fired immediately; else it will be added to the queue and wait its turn.
+   *
+   * If its a read/delivery receipt request, it will typically be fired immediately unless there are many receipt
+   * requests already in-flight.
    *
    * @method request
    * @param  {layer.SyncEvent} requestEvt - A SyncEvent specifying the request to be made
@@ -273,7 +271,7 @@ class SyncManager extends Root {
    *
    * @method _fireRequestWebsocket
    * @private
-   * @param {layer.WebsocketSyncEvent} requestEvt
+   * @param {layer.SyncEvent.WebsocketSyncEvent} requestEvt
    */
   _fireRequestWebsocket(requestEvt) {
     if (this.socketManager && this.socketManager._isOpen()) {
@@ -776,6 +774,14 @@ SyncManager._supportedEvents = [
   /**
    * A sync request has failed.
    *
+   * ```
+   * client.syncManager.on('sync:error', function(evt) {
+   *    console.error(evt.target.id + ' failed to send changes to server: ', result.data.message);
+   *    console.log('Request Event:', requestEvt);
+   *    console.log('Server Response:', result.data);
+   * });
+   * ```
+   *
    * @event
    * @param {layer.SyncEvent} evt - The request object
    * @param {Object} result
@@ -788,6 +794,14 @@ SyncManager._supportedEvents = [
   /**
    * A sync layer request has completed successfully.
    *
+   * ```
+   * client.syncManager.on('sync:success', function(evt) {
+   *    console.log(evt.target.id + ' changes sent to server successfully');
+   *    console.log('Request Event:', requestEvt);
+   *    console.log('Server Response:', result.data);
+   * });
+   * ```
+   *
    * @event
    * @param {Object} result
    * @param {string} result.target - ID of the message/conversation/etc. being operated upon
@@ -799,7 +813,15 @@ SyncManager._supportedEvents = [
   /**
    * A new sync request has been added.
    *
+   * ```
+   * client.syncManager.on('sync:add', function(evt) {
+   *    console.log(evt.target.id + ' has changes queued for the server');
+   *    console.log('Request Event:', requestEvt);
+   * });
+   * ```
+   *
    * @event
+   * @param {string} result.target - ID of the message/conversation/etc. being operated upon
    * @param {layer.SyncEvent} evt - The request object
    */
   'sync:add',

@@ -30,9 +30,14 @@
  *
  *      query.destroy();
  *
+ * #### predicate
+ *
+ * Note that the `predicate` property is only supported for Messages, and only supports
+ * querying by Conversation: `conversation.id = 'layer:///conversations/UUIUD'`
+ *
  * #### sortBy
  *
- * Note that the sortBy property is only supported for Conversations at this time and only
+ * Note that the `sortBy` property is only supported for Conversations at this time and only
  * supports "createdAt" and "lastMessage.sentAt" as sort fields.
  *
  * #### dataType
@@ -1143,6 +1148,7 @@ class Query extends Root {
    * can not be used safely as a paging id; return '';
    *
    * @method _updateNextFromId
+   * @private
    * @param {number} index - Current index of the nextFromId
    * @returns {string} - Next ID or empty string
    */
@@ -1151,7 +1157,7 @@ class Query extends Root {
     else return '';
   }
 
-  /**
+  /*
    * If this is ever changed to be async, make sure that destroy() still triggers synchronous events
    */
   _triggerChange(evt) {
@@ -1170,7 +1176,7 @@ Query.prefixUUID = 'layer:///queries/';
 /**
  * Query for Conversations.
  *
- * Use this value in the model property.
+ * Use this value in the layer.Query.model property.
  * @type {string}
  * @static
  */
@@ -1179,7 +1185,7 @@ Query.Conversation = CONVERSATION;
 /**
  * Query for Messages.
  *
- * Use this value in the model property.
+ * Use this value in the layer.Query.model property.
  * @type {string}
  * @static
  */
@@ -1188,7 +1194,7 @@ Query.Message = MESSAGE;
 /**
  * Query for Announcements.
  *
- * Use this value in the model property.
+ * Use this value in the layer.Query.model property.
  * @type {string}
  * @static
  */
@@ -1197,7 +1203,7 @@ Query.Announcement = ANNOUNCEMENT;
 /**
  * Get data as POJOs/immutable objects.
  *
- * Your Query data and events will provide Messages/Conversations as objects.
+ * This value of layer.Query.dataType will cause your Query data and events to provide Messages/Conversations as immutable objects.
  * @type {string}
  * @static
  */
@@ -1206,7 +1212,7 @@ Query.ObjectDataType = 'object';
 /**
  * Get data as instances of layer.Message and layer.Conversation.
  *
- * Your Query data and events will provide Messages/Conversations as instances.
+ * This value of layer.Query.dataType will cause your Query data and events to provide Messages/Conversations as instances.
  * @type {string}
  * @static
  */
@@ -1224,6 +1230,7 @@ Query.MaxPageSize = 100;
  * Access the number of results currently loaded.
  *
  * @type {Number}
+ * @readonly
  */
 Object.defineProperty(Query.prototype, 'size', {
   enumerable: true,
@@ -1237,6 +1244,7 @@ Object.defineProperty(Query.prototype, 'size', {
  * Will be 0 until the first query has successfully loaded results.
  *
  * @type {Number}
+ * @readonly
  */
 Query.prototype.totalSize = 0;
 
@@ -1246,16 +1254,18 @@ Query.prototype.totalSize = 0;
  *
  * @type {layer.Client}
  * @protected
+ * @readonly
  */
 Query.prototype.client = null;
 
 /**
  * Query results.
  *
- * Array of data resulting from the Query; either a layer.Root subclass.
+ * Array of data resulting from the Query; either a layer.Root subclass or Object.
  *
  * or plain Objects
  * @type {Object[]}
+ * @readonly
  */
 Query.prototype.data = null;
 
@@ -1263,11 +1273,15 @@ Query.prototype.data = null;
  * Specifies the type of data being queried for.
  *
  * Model is one of
+ *
  * * layer.Query.Conversation
  * * layer.Query.Message
  * * layer.Query.Announcement
  *
+ * Value can be set via constructor and layer.Query.update().
+ *
  * @type {String}
+ * @readonly
  */
 Query.prototype.model = '';
 
@@ -1280,8 +1294,13 @@ Query.prototype.model = '';
  * * id
  * * count
  *
- * This Query API is designed only for use with 'object'.
+ * Value set via constructor.
+ *
+ * This Query API is designed only for use with 'object' at this time; waiting for updates to server for
+ * this functionality.
+ *
  * @type {String}
+ * @readonly
  */
 Query.prototype.returnType = 'object';
 
@@ -1289,10 +1308,14 @@ Query.prototype.returnType = 'object';
  * Specify what kind of data array your application requires.
  *
  * Used to specify query dataType.  One of
- * * Query.ObjectDataType
- * * Query.InstanceDataType
+ *
+ * * layer.Query.ObjectDataType
+ * * layer.Query.InstanceDataType
+ *
+ * Value set via constructor.
  *
  * @type {String}
+ * @readonly
  */
 Query.prototype.dataType = Query.InstanceDataType;
 
@@ -1306,13 +1329,13 @@ Query.prototype.dataType = Query.InstanceDataType;
  *       paginationWindow: 150
  *     })
  *
- * This call will load 150 results.  If it previously had 100,
+ * This call will aim to achieve 150 results.  If it previously had 100,
  * then it will load 50 more. If it previously had 200, it will drop 50.
  *
- * Note that the server will only permit 100 at a time, so
- * setting a large pagination window may result in many
- * requests to the server to reach the specified page value.
+ * Note that the server will only permit 100 at a time.
+ *
  * @type {Number}
+ * @readonly
  */
 Query.prototype.paginationWindow = 100;
 
@@ -1329,6 +1352,7 @@ Query.prototype.paginationWindow = 100;
  * above sort options will make a lot more sense, and full sorting will be provided.
  *
  * @type {String}
+ * @readonly
  */
 Query.prototype.sortBy = null;
 
@@ -1343,29 +1367,34 @@ Query.prototype._initialPaginationWindow = 100;
 /**
  * Your Query's WHERE clause.
  *
- * Currently, the only query supported is "conversation.id = 'layer:///conversations/uuid'"
- * Note that both ' and " are supported.
+ * Currently, the only query supported is `conversation.id = 'layer:///conversations/uuid'`
+ * Note that both `'` and `"` are supported.
+ *
  * @type {string}
+ * @readonly
  */
 Query.prototype.predicate = null;
 
 /**
  * True if the Query is connecting to the server.
  *
- * It is not gaurenteed that every update(); for example, updating a paginationWindow to be smaller,
+ * It is not gaurenteed that every `update()` will fire a request to the server.
+ * For example, updating a paginationWindow to be smaller,
  * Or changing a value to the existing value would cause the request not to fire.
- * R ecommended pattern is:
+ *
+ * Recommended pattern is:
  *
  *      query.update({paginationWindow: 50});
  *      if (!query.isFiring) {
  *        alert("Done");
  *      } else {
- *          query.on("change", function(evt) {
+ *          query.once("change", function(evt) {
  *            if (evt.type == "data") alert("Done");
  *          });
  *      }
  *
  * @type {Boolean}
+ * @readonly
  */
 Query.prototype.isFiring = false;
 
@@ -1373,6 +1402,7 @@ Query.prototype.isFiring = false;
  * True if we have reached the last result, and further paging will just return []
  *
  * @type {Boolean}
+ * @readonly
  */
 Query.prototype.pagedToEnd = false;
 
@@ -1404,6 +1434,7 @@ Query.prototype._isServerSyncing = false;
  * only the last item pulled via this query from the server.
  *
  * @type {string}
+ * @private
  */
 Query.prototype._nextServerFromId = '';
 
@@ -1417,6 +1448,7 @@ Query.prototype._nextServerFromId = '';
  * only the last item pulled via this query from the database.
  *
  * @type {string}
+ * @private
  */
 Query.prototype._nextDBFromId = '';
 
@@ -1424,24 +1456,28 @@ Query.prototype._nextDBFromId = '';
 Query._supportedEvents = [
   /**
    * The query data has changed; any change event will cause this event to trigger.
+   *
    * @event change
    */
   'change',
 
   /**
    * A new page of data has been loaded from the server
+   *
    * @event 'change:data'
    */
   'change:data',
 
   /**
    * All data for this query has been reset due to a change in the Query predicate.
+   *
    * @event 'change:reset'
    */
   'change:reset',
 
   /**
    * An item of data within this Query has had a property change its value.
+   *
    * @event 'change:property'
    */
   'change:property',
@@ -1450,6 +1486,7 @@ Query._supportedEvents = [
    * A new item of data has been inserted into the Query. Not triggered by loading
    * a new page of data from the server, but is triggered by locally creating a matching
    * item of data, or receiving a new item of data via websocket.
+   *
    * @event 'change:insert'
    */
   'change:insert',
@@ -1457,12 +1494,14 @@ Query._supportedEvents = [
   /**
    * An item of data has been removed from the Query. Not triggered for every removal, but
    * is triggered by locally deleting a result, or receiving a report of deletion via websocket.
+   *
    * @event 'change:remove'
    */
   'change:remove',
 
   /**
    * The query data failed to load from the server.
+   *
    * @event error
    */
   'error',
@@ -1476,6 +1515,7 @@ Query._supportedEvents = [
    *
    * Only occurs for querying Messages.  Comes with a parameter `syncing` set to true
    * when we are syncing, and false when done.
+   *
    * @event server-syncing-state
    */
   'server-syncing-state',

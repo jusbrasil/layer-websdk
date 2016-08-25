@@ -13,7 +13,7 @@
  *      });
  *
  * @class  layer.Content
- * @protected
+ * @private
  * @extends layer.Root
  * @author Michael Kantor
  */
@@ -68,7 +68,7 @@ class Content extends Root {
           callback(null, result.data);
         }
       } else {
-        callback(result.data || 'Load Content Failed', null);
+        callback(result.data, null);
       }
     });
   }

@@ -8,7 +8,11 @@
  *
  * For conversations that involve notifications (primarily for Android and IOS), the more common pattern is:
  *
- *      var m = conversation.createMessage('Hello there').send({text: "Message from Fred: Hello there"});
+ *      var m = conversation.createMessage('Hello there').send({
+ *        text: "Message from Fred: Hello there",
+ *        title: "New Layer Message",
+ *        sound: "myaudiofile.aif"
+ *      });
  *
  * Typically, rendering would be done as follows:
  *
@@ -36,7 +40,7 @@
  *    * messages:sent: The message was received by the server
  *  * Query Instance fires
  *    * change: The query has received a new Message
- *    * change:add: Same as the change event but more specific
+ *    * change:add: Same as the change event but does not receive other types of change events
  *
  * When creating a Message there are a number of ways to structure it.
  * All of these are valid and create the same exact Message:
@@ -90,13 +94,11 @@
  * * layer.Message.id: this property is worth being familiar with; it identifies the
  *   Message and can be used in `client.getMessage(id)` to retrieve it
  *   at any time.
- * * layer.Message.internalId: This property makes for a handy unique ID for use in dom nodes.
- *   It is gaurenteed not to change during this session.
  * * layer.Message.isRead: Indicates if the Message has been read yet; set `m.isRead = true`
  *   to tell the client and server that the message has been read.
  * * layer.Message.parts: An array of layer.MessagePart classes representing the contents of the Message.
  * * layer.Message.sentAt: Date the message was sent
- * * layer.Message.sender's `userId` property: Conversation participant who sent the Message. You may
+ * * layer.Message.sender `userId`: Conversation participant who sent the Message. You may
  *   need to do a lookup on this id in your own servers to find a
  *   displayable name for it.
  *
@@ -236,6 +238,13 @@ class Message extends Syncable {
    * Add a layer.MessagePart to this Message.
    *
    * Should only be called on an unsent Message.
+   *
+   * ```
+   * message.addPart({mimeType: 'text/plain', body: 'Frodo really is a Dodo'});
+   *
+   * // OR
+   * message.addPart(new layer.MessagePart({mimeType: 'text/plain', body: 'Frodo really is a Dodo'}));
+   * ```
    *
    * @method addPart
    * @param  {layer.MessagePart/Object} part - A layer.MessagePart instance or a `{mimeType: 'text/plain', body: 'Hello'}` formatted Object.
@@ -445,6 +454,18 @@ class Message extends Syncable {
   /**
    * Send a Read or Delivery Receipt to the server.
    *
+   * For Read Receipt, you can also just write:
+   *
+   * ```
+   * message.isRead = true;
+   * ```
+   *
+   * You can retract a Delivery or Read Receipt; once marked as Delivered or Read, it can't go back.
+   *
+   * ```
+   * messsage.sendReceipt(layer.Constants.RECEIPT_STATE.READ);
+   * ```
+   *
    * @method sendReceipt
    * @param {string} [type=layer.Constants.RECEIPT_STATE.READ] - One of layer.Constants.RECEIPT_STATE.READ or layer.Constants.RECEIPT_STATE.DELIVERY
    * @return {layer.Message} this
@@ -505,9 +526,17 @@ class Message extends Syncable {
    *
    * Message must have parts and a valid conversation to send successfully.
    *
-   * The send method takes a `notification` object; in normal uses it provides the same notification to ALL
+   * The send method takes a `notification` object. In normal use, it provides the same notification to ALL
    * recipients, but you can customize notifications on a per recipient basis, as well as embed actions into the notification.
-   * For the Full API, see https://developer.layer.com/docs/platform/messages#notification-customization.
+   * For the Full API, see [Server Docs](https://developer.layer.com/docs/platform/messages#notification-customization).
+   *
+   * ```
+   * message.send({
+   *    title: "New Hobbit Message",
+   *    text: "Frodo-the-Dodo: Hello Sam, what say we waltz into Mordor like we own the place?",
+   *    sound: "whinyhobbit.aiff"
+   * });
+   * ```
    *
    * @method send
    * @param {Object} [notification] - Parameters for controling how the phones manage notifications of the new Message.
@@ -683,26 +712,26 @@ class Message extends Syncable {
     this._setSynced();
   }
 
-  /**
-     * Standard `on()` provided by layer.Root.
-     *
-     * Adds some special handling of 'messages:loaded' so that calls such as
-     *
-     *      var m = client.getMessage('layer:///messages/123', true)
-     *      .on('messages:loaded', function() {
-     *          myrerender(m);
-     *      });
-     *      myrender(m); // render a placeholder for m until the details of m have loaded
-     *
-     * can fire their callback regardless of whether the client loads or has
-     * already loaded the Message.
-     *
-     * @method on
-     * @param  {string} eventName
-     * @param  {Function} eventHandler
-     * @param  {Object} context
-     * @return {layer.Message} this
-     */
+  /* NOT FOR JSDUCK.
+   * Standard `on()` provided by layer.Root.
+   *
+   * Adds some special handling of 'messages:loaded' so that calls such as
+   *
+   *      var m = client.getMessage('layer:///messages/123', true)
+   *      .on('messages:loaded', function() {
+   *          myrerender(m);
+   *      });
+   *      myrender(m); // render a placeholder for m until the details of m have loaded
+   *
+   * can fire their callback regardless of whether the client loads or has
+   * already loaded the Message.
+   *
+   * @method on
+   * @param  {string} eventName
+   * @param  {Function} eventHandler
+   * @param  {Object} context
+   * @return {layer.Message} this
+   */
   on(name, callback, context) {
     const hasLoadedEvt = name === 'messages:loaded' ||
       name && typeof name === 'object' && name['messages:loaded'];
@@ -821,7 +850,7 @@ class Message extends Syncable {
     this.sender = {
       name: message.sender.name,
       userId: message.sender.user_id,
-      displayName: message.sender.display_name || message.sender.name, // Not well supported; not recommended for use.
+      displayName: message.sender.display_name, // Not well supported; not recommended for use.
       avatarUrl: message.sender.avatar_url, // Not well supported; not recommended for use.
     };
 
@@ -839,6 +868,10 @@ class Message extends Syncable {
 
   /**
    * Returns the Message's layer.MessagePart with the specified the part ID.
+   *
+   * ```
+   * var part = client.getMessagePart('layer:///messages/6f08acfa-3268-4ae5-83d9-6ca00000000/parts/0');
+   * ```
    *
    * @method getPartById
    * @param {string} partId
@@ -1006,15 +1039,25 @@ Message.prototype.clientId = '';
 Message.prototype.conversationId = '';
 
 /**
- * Array of layer.MessagePart objects
+ * Array of layer.MessagePart objects.
+ *
+ * Use layer.Message.addPart to modify this array.
  *
  * @type {layer.MessagePart[]}
+ * @readonly
  */
 Message.prototype.parts = null;
 
 /**
  * Time that the message was sent.
+ *
+ * Note that a locally created layer.Message will have a `sentAt` value even
+ * though its not yet sent; this is so that any rendering code doesn't need
+ * to account for `null` values.  Sending the Message may cause a slight change
+ * in the `sentAt` value.
+ *
  * @type {Date}
+ * @readonly
  */
 Message.prototype.sentAt = null;
 
@@ -1022,6 +1065,7 @@ Message.prototype.sentAt = null;
  * Time that the first delivery receipt was sent by your
  * user acknowledging receipt of the message.
  * @type {Date}
+ * @readonly
  */
 Message.prototype.receivedAt = null;
 
@@ -1030,14 +1074,29 @@ Message.prototype.receivedAt = null;
  *
  * Contains the following properties IF you have defined these within your Identity token:s
  *
- * * name: If sent by a Bot or service that does not have a userId, the name property will be used to provide a service name that is defined via Layer's Platform API.
- * * userId: Name for the user as represented on your system
+ * * `name`: If sent by a Bot or service that does not have a userId, the name property will be used to provide a service name that is defined via Layer's Platform API.
+ * * `userId`: Name for the user as represented on your system
+ * * `displayName`: If you have embedded a Display Name in your Identity Tokens, or uploaded a display name for your users into Layer's Servers,
+ *   then this value of sender will be populated.  Unless the Message comes from a bot or service.
+ * * `avatarUrl`: If you have embedded an Avatar URL in your Identity Tokens, or uploaded URLs for your users into Layer's Servers,
+ *   then this value of sender will be populated.  Unless the Message comes from a bot or service.
  *
- *      <span class='sent-by'>
- *        {message.sender.userId || message.sender.name}
- *      </span>
+ * ```
+ * <span class='sent-by'>
+ *    {message.sender.userId || message.sender.name}
+ * </span>
+ * ```
+ *
+ * If you are using the `displayName` within Layer Services, then you can also use:
+ *
+ * ```
+ * <span class='sent-by'>
+ *    {message.sender.displayName || message.sender.name}
+ * </span>
+ * ```
  *
  * @type {Object}
+ * @readonly
  */
 Message.prototype.sender = null;
 
@@ -1052,6 +1111,7 @@ Message.prototype.sender = null;
  * 3. Each successive message within a conversation should expect a higher position.
  *
  * @type {Number}
+ * @readonly
  */
 Message.prototype.position = 0;
 
@@ -1068,8 +1128,9 @@ Message.prototype._notify = false;
 /**
  * Read/delivery State of all participants.
  *
- * This is an object containing keys for each participant,
+ * This is an object whose keys are User IDs of participants,
  * and a value of:
+ *
  * * layer.RECEIPT_STATE.SENT
  * * layer.RECEIPT_STATE.DELIVERED
  * * layer.RECEIPT_STATE.READ
@@ -1112,7 +1173,8 @@ Object.defineProperty(Message.prototype, 'isUnread', {
  *  * layer.Constants.RECIPIENT_STATE.SOME
  *  * layer.Constants.RECIPIENT_STATE.NONE
  *
- *  This value is updated any time recipientStatus changes.
+ * This value is updated any time recipientStatus changes.
+ * See layer.Message.recipientStatus for a more detailed report.
  *
  * @type {String}
  */
@@ -1127,7 +1189,8 @@ Message.prototype.readStatus = Constants.RECIPIENT_STATE.NONE;
  *  * layer.Constants.RECIPIENT_STATE.SOME
  *  * layer.Constants.RECIPIENT_STATE.NONE
  *
- *  This value is updated any time recipientStatus changes.
+ * This value is updated any time recipientStatus changes.
+ * See layer.Message.recipientStatus for a more detailed report.
  *
  *
  * @type {String}
@@ -1160,7 +1223,18 @@ Message._supportedEvents = [
   /**
    * Message has been loaded from the server.
    *
-   * Note that this is only used in response to the layer.Message.load() method.
+   * Note that this is only used in response to the layer.Message.load method.
+   *
+   * ```
+   * var m = client.getMessage('layer:///messages/123', true)
+   *    .on('messages:loaded', function() {
+   *        myrerender(m);
+   *    });
+   * myrender(m); // render a placeholder for m until the details of m have loaded
+   * ```
+   *
+   * Note that in the above code, the event handler will be called even if the Message is already loaded and cached.
+   *
    * @event
    * @param {layer.LayerEvent} evt
    */
@@ -1169,7 +1243,7 @@ Message._supportedEvents = [
   /**
    * The load method failed to load the message from the server.
    *
-   * Note that this is only used in response to the layer.Message.load() method.
+   * Note that this is only used in response to the layer.Message.load method.
    * @event
    * @param {layer.LayerEvent} evt
    */
@@ -1228,8 +1302,9 @@ Message._supportedEvents = [
    * The recipientStatus property has changed.
    *
    * This happens in response to an update
-   * from the server... but is also caused by marking the current user has having read
+   * from the server... but is also caused by marking the current user as having read
    * or received the message.
+   *
    * @event
    * @param {layer.LayerEvent} evt
    */

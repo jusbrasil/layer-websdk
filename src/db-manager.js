@@ -607,6 +607,7 @@ class DbManager extends Root {
    * it will be set to null.
    *
    * @method _createConversation
+   * @private
    * @param {Object} conversation
    * @returns {layer.Conversation}
    */
@@ -626,6 +627,7 @@ class DbManager extends Root {
    * javascript cache is more up to date than whats in IndexedDB cache.
    *
    * @method _createMessage
+   * @private
    * @param {Object} message
    * @returns {layer.Message}
    */
@@ -775,9 +777,9 @@ class DbManager extends Root {
    * @protected
    * @param {String} tableName - 'messages', 'conversations'
    * @param {String} indexName - Name of the index to query on
-   * @param {IDBKeyRange} [range=null] - Range to Query for
-   * @param {Boolean} [isFromId=false] - If querying for results after a specified ID, then we want to skip the first result (which will be that ID)
-   * @param {number} [pageSize=] - If a value is provided, return at most that number of results; else return all results.
+   * @param {IDBKeyRange} range - Range to Query for (null ok)
+   * @param {Boolean} isFromId - If querying for results after a specified ID, then we want to skip the first result (which will be that ID) ("" is ok)
+   * @param {number} pageSize - If a value is provided, return at most that number of results; else return all results.
    * @param {Function} callback
    * @param {Object[]} callback.result
    */
@@ -990,21 +992,25 @@ DbManager.prototype.isOpen = false;
 
 /**
  * @type {boolean} is the db connection will not open
+ * @private
  */
 DbManager.prototype._isOpenError = false;
 
 /**
  * @type {boolean} Is reading/writing messages allowed?
+ * @private
  */
 DbManager.prototype._permission_messages = false;
 
 /**
  * @type {boolean} Is reading/writing conversations allowed?
+ * @private
  */
 DbManager.prototype._permission_conversations = false;
 
 /**
  * @type {boolean} Is reading/writing unsent server requests allowed?
+ * @private
  */
 DbManager.prototype._permission_syncQueue = false;
 

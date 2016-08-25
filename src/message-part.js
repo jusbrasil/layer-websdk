@@ -31,29 +31,32 @@
  * You should always expect to see the `body` property be a Blob **unless** the mimeType is listed in layer.MessagePart.TextualMimeTypes,
  * in which case the value will be a String.  You can add mimeTypes to TextualMimeTypes:
  *
- *    layer.MessagePart.TextualMimeTypes = ['text/plain', 'text/mountain', /^application\/json(\+.+)$/]
+ * ```
+ * layer.MessagePart.TextualMimeTypes.push('location/coordinates');
+ * ```
  *
- * Any mimeType matching the above strings and regular expressions will be transformed to text before being delivered to your app; otherwise it must be a Blob.
+ * Any mimeType matching any existing values in `TextualMimeTypes` or `location/coordinates` will be transformed to text before
+ * being delivered to your app; otherwise it must be a Blob.  Note that you can push strings and Regular Expressions.
  *
  * ### Accesing Rich Content
  *
  * There are two ways of accessing rich content
  *
  * 1. Access the data directly: `part.fetchContent(function(data) {myRenderData(data);})`. This approach downloads the data,
- *    writes it to the the `body` property, writes a Data URI to the part's `url` property, and then calls your callback.
+ *    writes it to the `body` property, writes a Data URI to the part's `url` property, and then calls your callback.
  *    By downloading the data and storing it in `body`, the data does not expire.
- * 2. Access the URL rather than the data: `part.fetchStream(callback)`.  URLs are needed for streaming, and for content that doesn't
- *    yet need to be rendered (hyperlinks to data that will render when clicked).  These URLs expire.  The url property will return a
- *    string if the url is valid, or '' if its expired and fetchStream must be called to update the url.
+ * 2. Access the URL rather than the data.  When you first receive the Message Part it will have a valid `url` property; however, this URL expires.  *    URLs are needed for streaming, and for content that doesn't
+ *    yet need to be rendered (e.g. hyperlinks to data that will render when clicked).  The url property will return a
+ *    string if the url is valid, or '' if its expired.  Call `part.fetchStream(callback)` to get an updated URL.
  *    The following pattern is recommended:
  *
- *        if (!part.url) {
- *          part.fetchStream(function(url) {myRenderUrl(url)});
- *        } else {
- *          myRenderUrl(part.url);
- *        }
- *
- * NOTE: `layer.MessagePart.url` should have a value when the message is first received, and will only fail `if (!part.url)` once the url has expired.
+ * ```
+ * if (!part.url) {
+ *    part.fetchStream(function(url) {myRenderUrl(url)});
+ * } else {
+ *   myRenderUrl(part.url);
+ * }
+ * ```
  *
  * @class  layer.MessagePart
  * @extends layer.Root
@@ -163,13 +166,23 @@ class MessagePart extends Root {
   /**
    * Download Rich Content from cloud server.
    *
-   * For MessageParts with rich content, will load the data from google's cloud storage.
-   * The body property of this MessagePart is set to the result.
+   * For MessageParts with rich content, this method will load the data from google's cloud storage.
+   * The `body` property of this MessagePart is set to the result.
    *
    *      messagepart.fetchContent()
    *      .on("content-loaded", function() {
    *          render(messagepart.body);
    *      });
+   *
+   * Note that a successful call to `fetchContent` will also cause Query change events to fire.
+   * In this example, `render` will be called by the query change event that will occur once the content has downloaded:
+   *
+   * ```
+   *  query.on('change', function(evt) {
+   *    render(query.data);
+   *  });
+   *  messagepart.fetchContent();
+   * ```
    *
    * @method fetchContent
    * @param {Function} [callback]
@@ -191,7 +204,7 @@ class MessagePart extends Root {
    *
    * @private
    * @method _fetchContentCallback
-   * @param {layer.Error} err
+   * @param {layer.LayerError} err
    * @param {Object} result
    * @param {Function} callback
    */
@@ -236,11 +249,22 @@ class MessagePart extends Root {
    * Access the URL to the remote resource.
    *
    * For MessageParts with Rich Content, will lookup a URL to your Rich Content.
-   * Useful for streaming and content so that you don't have to download the entire file before rendering it.
+   * Useful for streaming the content so that you don't have to download the entire file before rendering it.
+   * Also useful for content that will be openned in a new window, and does not need to be fetched now.
    *
    *      messagepart.fetchStream(function(url) {
    *          render(url);
    *      });
+   *
+   * Note that a successful call to `fetchStream` will also cause Query change events to fire.
+   * In this example, `render` will be called by the query change event that will occur once the `url` has been refreshed:
+   *
+   * ```
+   *  query.on('change', function(evt) {
+   *    render(query.data);
+   *  });
+   *  messagepart.fetchStream();
+   * ```
    *
    * @method fetchStream
    * @param {Function} [callback]
@@ -333,6 +357,10 @@ class MessagePart extends Root {
    *
    * However, conversion to base64 can impact the size, so we must retest the size
    * after conversion, and then decide to send the original blob or the base64 encoded data.
+   *
+   * @method _sendBlob
+   * @private
+   * @param {layer.Client} client
    */
   _sendBlob(client) {
     /* istanbul ignore else */
@@ -454,6 +482,9 @@ class MessagePart extends Root {
    * Is the mimeType for this MessagePart defined as textual content?
    *
    * If the answer is true, expect a `body` of string, else expect `body` of Blob.
+   *
+   * To change whether a given MIME Type is treated as textual, see layer.MessagePart.TextualMimeTypes.
+   *
    * @method isTextualMimeType
    * @returns {Boolean}
    */
@@ -514,6 +545,10 @@ MessagePart.prototype.id = '';
  * Body of your message part.
  *
  * This is the core data of your part.
+ *
+ * If this is `null` then most likely layer.Message.hasContent is true, and you
+ * can either use the layer.MessagePart.url property or the layer.MessagePart.fetchContent method.
+ *
  * @type {string}
  */
 MessagePart.prototype.body = null;
@@ -559,19 +594,23 @@ Object.defineProperty(MessagePart.prototype, 'url', {
 });
 
 /**
- * Mime Type for the data in layer.MessagePart.body.
+ * Mime Type for the data represented by the MessagePart.
+ *
+ * Typically this is the type for the data in layer.MessagePart.body;
+ * if there is Rich Content, then its the type of Content that needs to be
+ * downloaded.
  *
  * @type {String}
  */
 MessagePart.prototype.mimeType = 'text/plain';
 
 /**
- * Size of the layer.MessagePart.body.
+ * Size of Rich Content we are preparing to send.
  *
- * Will be set for you if not provided.
- * Only needed for use with rich content.
+ * Will be set for you if not provided in the constructor.
  *
  * @type {number}
+ * @readonly
  */
 MessagePart.prototype.size = 0;
 
@@ -583,7 +622,9 @@ MessagePart.prototype.size = 0;
  *
  * This value can be customized using strings and regular expressions:
  *
- *    layer.MessagePart.TextualMimeTypes = ['text/plain', 'text/mountain', /^application\/json(\+.+)$/]
+ * ```
+ * layer.MessagePart.TextualMimeTypes = ['text/plain', 'text/mountain', /^application\/json(\+.+)$/]
+ * ```
  *
  * @static
  * @type {Mixed[]}

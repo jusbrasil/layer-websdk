@@ -4,16 +4,104 @@
 
 #### Breaking Changes
 
-* Authentication
-  * Initializing the `layer.Client` does *NOT* start Authentication any more!
+##### 1. Authentication Changes
+
+Previously you could instantiate a layer.Client with a userId and it would automatically authenticate.
+This is no longer supported; now you create a layer.Client, and when you are ready, you call `client.connect(userId)`.
+
+```javascript
+var client = new layer.Client({
+    appId: "layer:///apps/staging/YOUR-APP-ID",
+    isTrustedDevice: false
+});
+
+client.connect('Frodo-the-Dodo');
+```
+
+An optiona also exists to provide a session token that you have obtained yourself:
+
+```
+client.connectWithSession('Frodo-the-Dodo', mySessionToken);
+```
+
+Neither `sessionToken` nor `userId` are supported in the layer.Client constructor.
+
+Furthermore, note that the `client.login()` method is removed. User `client.connect()` instead.
+
+##### 2. Create Conversation
+
+Previously, the following shorthand was supported:
+
+```javascript
+client.createConversation([participant1, participant2, etc...]);
+```
+
+This is no longer supported; only the longhand format is supported:
+
+```javascript
+client.createConversation({
+    participants: [participant1, participant2, etc...]
+});
+```
+
+##### 3. MessageParts Strings, Blobs and Base64 Encoding
+
+The encoding property has been removed from layer.MessagePart.  If the server tells us that a MessagePart is base64 encoded, it will be turned into a Blob before your application sees it.  Any place your code expected a base64 string will now receive a Blob.
+
+You can control which MIME Types are turned into Strings, and which are turned into Blobs using the new `layer.MessagePart.TextualMimeTypes` static property, which defaults to treating any MIME Type matching `text/*` or `application/json` as string and everything else as a Blob.  The following example adds a new type to be treated as a String:
+
+```javascript
+layer.MessagePart.TextualMimeTypes.push('application/location');
+```
+
+This change means that when you receive an Image, you no longer need to write code that handles both the case of it being a small enough image to be sent as a base64 encoded `body` string that you have to decode AND the case of it being Rich Content, downloaded, and delivered as a Blob.  Now data is delivered in a consistent manner.
+
+##### 4. layer.Query no longer defaults to a model of Conversation
+
+This was an oversight that has been corrected; if you created a Query with:
+
+```javascript
+var conversationQuery = client.createQuery({});
+```
+You will need to update to:
+```javascript
+var conversationQuery = client.createQuery({
+  model: layer.Query.Conversation
+});
+```
+
+##### 5. layer.User has been removed
+
+This class was deprecated in `v1.0`.  Now its gone.  `v2.0` will introduce `layer.Identity`.
+
+#### Major new Features
+
+* Announcements
+  * Introduces the `layer.Announcement` class
+  * You can now Query for Announcements sent to your users
+* Persistence (this is still considered experimental and must be explicitly enabled)
+  * IndexedDB can store all Conversations, Messages and Announcements if the `layer.Client.isTrustedDevice` property is set to `true`, and `layer.Client.isPersistenceEnabled` is set to `true`.
+  * Applications can now run entirely offline, populating `layer.Query` data using IndexedDB databases.
+* Deleting Messages and Conversations from my devices, but not from other users devices:
+  * In addition to calling `conversation.delete(layer.Constants.DELETION_MODE.ALL)` and `message.delete(layer.Constants.DELETION_MODE.ALL)`, you can now delete Messages and Conversation from your user's devices Only using `layer.Constants.DELETION_MODE.MY_DEVICES`.
+  * `layer.Conversation.leave()` can be called to remove yourself as a participant and remove the Conversation from your devices.
+
+#### Minor Changes
+
+* No more `temp_layer:///` IDs, no more ID change events
+  * Sending a Message will no longer result in a `messages:change` event that contains a change to the Message ID; the Message ID that is assigned when creating the Message will be accepted by the server.
+  * Conversations may still get an ID change event in the case where a Distinct Conversation is created, and a matching Distinct Conversation is found on the server.
+* Deduplication
+  * If a response is not received to a request to create a Conversation or Message, it will be retried with deduplication support to insure that if it was created before, a duplicate is not created on retry.
+* layer.Message
+  * `layer.Message.getConversation()` now supports a boolean parameter to load from server if Conversation is not cached.
+* layer.Client Authentication Changes
   * Client initialization no longer takes a `userId` parameter, and no longer immediately begins the authentication process
   * Client initialization no longer takes a `sessionToken` parameter
-  * layer.Client.connect is now called to start authentication
-  * layer.Client.connectWithSession can also be used to startup the client, if you already have a Session Token.
-  * layer.Client.login has been removed; see layer.Client.connect instead
-  * layer.Client.logout(callback) now takes a callback so that you can wait for all async activities to complete before navigating away.
-* layer.User has been removed.
-* layer.Query no longer defaults to a Conversation model; this must be specificied explicitly.
+  * `layer.Client.connect` is now called to start authentication
+  * `layer.Client.connectWithSession` can also be used to startup the client, if you already have a Session Token.
+  * `layer.Client.login` has been removed; see `layer.Client.connect` instead
+  * `layer.Client.logout(callback)` now takes a callback so that you can wait for all async activities to complete before navigating away.
 * layer.MessagePart has changed in the following ways:
   * The encoding property is removed
   * `MessagePart.body` will always be either a String or a Blob; it will never be base64 encoded.  Base64 encoded data will be transformed to string or Blob before your application receives it.
@@ -22,33 +110,6 @@
   * Any non-textual MessagePart will have a `body` that is `null` (Rich Content which hasn't been fetched via `part.fetchContent()`) or a Blob)
   * Note that these rules apply regardless of whether the MessagePart size is less than or greater than 2KB, and regardless of whether its transmitted
     as base64 data.  This means any renderer has only to test for `null` or a value to handle its content.
-* layer.Query no longer defaults to querying Conversations; you must specify a `model` property.
-
-#### Major new Features
-
-* Announcements
-  * Introduces the `layer.Announcement` class
-  * You can now Query for Announcements sent to your users
-* Persistence (this is still considered experimental and must be explicitly enabled)
-  * IndexedDB can store all Conversations, Messages and Announcements if the `layer.Client.isTrustedDevice` property is set to `true`, and `layer.Client.persistenceEnabled` is set to `true`.
-  * Applications can now run entirely offline, populating `layer.Query` data using IndexedDB databases.
-
-
-#### Minor new Features
-
-* Deleting Messages and Conversations from my devices, but not from other users devices:
-  * In addition to calling `conversation.delete(layer.Constants.DELETION_MODE.ALL)` and `message.delete(layer.Constants.DELETION_MODE.ALL)`, you can now delete Messages and Conversation from your user's devices Only using `layer.Constants.DELETION_MODE.MY_DEVICES`.
-  * `layer.Conversation.leave()` can be called to remove yourself as a participant and remove the Conversation from your devices.
-* No more `temp_layer:///` IDs, no more ID change events
-  * Sending a Message will no longer result in a `messages:change` event that contains a change to the Message ID; the Message ID that is assigned when creating the Message will be accepted by the server.
-  * Conversations may still get an ID change event in the case where a Distinct Conversation is created, and a matching Distinct Conversation is found on the server.
-* Querys on Messages in a Conversation still syncing its data will retry until syncing is done or a full page of data is loaded.  (WEB-1053)
-* Deduplication
-  * If a response is not received to a request to create a Conversation or Message, it will be retried with deduplication support to insure that if it was created before, a duplicate is not created on retry.
-* layer.Message
-  * `layer.Message.getConversation()` now supports a boolean parameter to load from server if Conversation is not cached.
-* layer.Client
-  * Adds a `user` property containing a `layer.Identity` instance representing the authenticated user of this session.
 * layer.OnlineStateManager: Now starts managing isOnline state as soon as `client.connect()` or `client.connectWithSession()` are called.
 
 #### Bug Fixes

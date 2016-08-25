@@ -264,16 +264,6 @@ const QueryBuilder = {
   },
 
   /**
-   * Create a new layer.IdentitiesQuery instance.
-   *
-   * @method identities
-   * @returns {layer.QueryBuilder.IdentitiesQuery}
-   */
-  identities() {
-    return new IdentitiesQuery();
-  },
-
-  /**
    * Takes the return value of QueryBuilder.prototype.build and creates a
    * new QueryBuilder.
    *

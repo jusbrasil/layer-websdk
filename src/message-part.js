@@ -310,7 +310,7 @@ class MessagePart extends Root {
    * @param  {layer.Client} client
    * @fires parts:send
    */
-  _send(client) {
+  _sendPart(client) {
     // There is already a Content object, presumably the developer
     // already took care of this step for us.
     if (this._content) {
@@ -330,6 +330,17 @@ class MessagePart extends Root {
     // Else the message part can be sent as is.
     else {
       this._sendBody();
+    }
+  }
+
+  _send() {
+    if (typeof this.lazyResolve === 'function') {
+      this.lazyResolve(this, (result) => {
+        Object.assign(this, result);
+        this._sendPart(client);
+      });
+    } else {
+      this._sendPart(client);
     }
   }
 
@@ -553,6 +564,13 @@ MessagePart.prototype.clientId = '';
  * @type {string}
  */
 MessagePart.prototype.id = '';
+
+/**
+ * Allow lazy resolve message part fields (body, size, content, etc)
+ *
+ * @type {function}
+ */
+MessagePart.prototype.lazyResolve = null;
 
 /**
  * Body of your message part.

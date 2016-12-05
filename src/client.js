@@ -947,6 +947,7 @@ class Client extends ClientAuth {
     objects.forEach(obj => {
       if (!obj.isDestroyed && !this._isCachedObject(obj)) {
         if (obj instanceof Root === false) obj = this._getObject(obj.id);
+        if (obj instanceof Conversation) return;
         if (obj) obj.destroy();
       }
     });

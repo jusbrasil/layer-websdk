@@ -22,6 +22,8 @@ class Announcement extends Message {
   send() {}
   getConversation() {}
 
+  _sendReceipt() {}
+
   _loaded(data) {
     this.getClient()._addMessage(this);
   }

@@ -45,7 +45,7 @@
  * @protected
  */
 
-const INTERVAL = 2500;
+const INTERVAL = 500;
 const { STARTED, PAUSED, FINISHED } = require('./typing-indicators');
 const ClientRegistry = require('../client-registry');
 
@@ -151,7 +151,7 @@ class TypingPublisher {
       } else if (this.state === STARTED) {
         this.setState(PAUSED);
       }
-    }, INTERVAL);
+    }, INTERVAL * 5);
   }
 
 
